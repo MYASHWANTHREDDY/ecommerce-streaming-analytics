@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    ports:
+      - "29092:29092"        # Port for host tools (producer on your laptop)
+    environment:
+      # KRaft mode: single node acts as both broker and controller (no ZooKeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # Three listener protocols:
+      # - INTERNAL: for inter-broker and inter-container traffic (kafka:9092)
+      # - CONTROLLER: for KRaft controller quorum (kafka:9093)
+      # - EXTERNAL: for host tools like our producer (localhost:29092)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+
+      # Advertised listeners tell clients where to reach the broker
+      # Container-to-container uses INTERNAL hostname (kafka:9092)
+      # Host machine tools use EXTERNAL hostname (localhost:29092)
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+
+      # Map each protocol name to its security protocol (all PLAINTEXT for local dev)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+
+      # Which listener the controller listens on
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Which listener brokers use to communicate with each other
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # KRaft quorum voters: this broker votes (node 1 @ kafka:9093)
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Single-node cluster settings (in production, you'd scale these up)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+      POSTGRES_DB: analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      # SQL files in sql/init/ auto-run on first container startup
+      - ./sql/init:/docker-entrypoint-initdb.d
+      # Named volume persists data across container restarts
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

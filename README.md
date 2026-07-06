@@ -113,7 +113,7 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 Check Postgres:
 ```bash
-psql -h localhost -U pipeline -d analytics -c "SELECT COUNT(*) FROM live_order_metrics;"
+psql -h localhost -p 5433 -U pipeline -d analytics -c "SELECT COUNT(*) FROM live_order_metrics;"
 ```
 
 ## Development

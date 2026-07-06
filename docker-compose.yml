@@ -47,7 +47,10 @@ services:
       POSTGRES_PASSWORD: pipeline
       POSTGRES_DB: analytics
     ports:
-      - "5432:5432"
+      # Host port 5433 (not the default 5432) to avoid colliding with any other local
+      # Postgres instance. Container-to-container traffic (Airflow, etc.) is unaffected —
+      # it uses the service name/internal port (postgres:5432), not this host mapping.
+      - "5433:5432"
     volumes:
       # SQL files in sql/init/ auto-run on first container startup
       - ./sql/init:/docker-entrypoint-initdb.d

@@ -3,10 +3,10 @@
 Track progress through the project build here.
 
 ## Milestone 1: Kafka + Producer
-- [ ] docker-compose.yml running (Kafka + Postgres)
-- [ ] producer/producer.py reading dataset and emitting JSON events to Kafka
-- [ ] Events visible in kafka-console-consumer
-- [ ] Commit: "M1: Kafka + producer streaming order events"
+- [x] docker-compose.yml running (Kafka + Postgres)
+- [x] producer/producer.py reading dataset and emitting JSON events to Kafka
+- [x] Events visible in kafka-console-consumer
+- [x] Commit: "M1: Kafka + producer streaming order events"
 
 ## Milestone 2: Spark Structured Streaming
 - [ ] streaming/schemas.py with explicit StructType for order events

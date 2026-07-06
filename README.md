@@ -75,17 +75,25 @@ Then visit `http://localhost:8501` to see live order metrics updating in real ti
    ```
    (A 1k-row sample is committed; the full 1M-row file is optional.)
 
-3. Start services:
+3. Install Python dependencies (ideally in a venv):
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate   # Windows; use `source .venv/bin/activate` on Mac/Linux
+   pip install -r requirements.txt
+   cp .env.example .env
+   ```
+
+4. Start services:
    ```bash
    make up
    ```
 
-4. In another terminal, stream events:
+5. In another terminal, stream events:
    ```bash
    make produce
    ```
 
-5. In a third terminal, open the dashboard:
+6. In a third terminal, open the dashboard:
    ```bash
    make demo
    ```
@@ -100,7 +108,7 @@ docker compose ps
 Watch Kafka events:
 ```bash
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 --topic orders --from-beginning | head -10
+  --bootstrap-server localhost:9092 --topic orders --from-beginning --max-messages 20
 ```
 
 Check Postgres:
@@ -143,7 +151,7 @@ The producer converts rows into timestamped JSON events and deliberately corrupt
 
 ## Next Steps
 
-- [ ] Milestone 1: Kafka + producer
+- [x] Milestone 1: Kafka + producer
 - [ ] Milestone 2: Spark Structured Streaming
 - [ ] Milestone 3: Airflow + Great Expectations
 - [ ] Milestone 4: Dashboard + hardening

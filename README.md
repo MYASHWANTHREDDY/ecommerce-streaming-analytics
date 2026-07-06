@@ -164,7 +164,7 @@ The producer converts rows into timestamped JSON events and deliberately corrupt
 
 - [x] Milestone 1: Kafka + producer
 - [x] Milestone 2: Spark Structured Streaming
-- [ ] Milestone 3: Airflow + Great Expectations
+- [x] Milestone 3: Airflow + Great Expectations
 - [ ] Milestone 4: Dashboard + hardening
 - [ ] Milestone 5: Documentation
 

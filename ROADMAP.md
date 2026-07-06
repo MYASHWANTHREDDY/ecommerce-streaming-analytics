@@ -18,13 +18,13 @@ Track progress through the project build here.
 - [x] Commit: "M2: Spark Structured Streaming with validation + dead-letter queue"
 
 ## Milestone 3: Airflow + Great Expectations
-- [ ] Airflow service in compose (LocalExecutor)
-- [ ] airflow/dags/batch_quality_marts.py (hourly DAG)
-- [ ] Great Expectations suite on bronze data
-- [ ] Gold marts built from sql/marts/*.sql (fulfillment time, profit margins, etc.)
-- [ ] GE Data Docs generated
-- [ ] Test with bad data → DAG fails as expected
-- [ ] Commit: "M3: Airflow DAGs + Great Expectations quality checks"
+- [x] Airflow service in compose (LocalExecutor)
+- [x] airflow/dags/batch_quality_marts.py (hourly DAG)
+- [x] Great Expectations suite on bronze data
+- [x] Gold marts built from sql/marts/*.sql (fulfillment time, profit margins, etc.)
+- [x] GE Data Docs generated
+- [x] Test with bad data → DAG fails as expected
+- [x] Commit: "M3: Airflow DAGs + Great Expectations quality checks"
 
 ## Milestone 4: Dashboard + Hardening
 - [ ] dashboard/app.py in Streamlit (Live page + Analytics page)

@@ -1,0 +1,4 @@
+great-expectations==1.18.2
+duckdb>=1.1.0,<2.0.0
+pandas>=2.0,<3.0
+pyarrow>=14.0

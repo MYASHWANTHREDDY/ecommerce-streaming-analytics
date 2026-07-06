@@ -36,12 +36,12 @@ Track progress through the project build here.
 - [x] Commit: "M4: Streamlit dashboard + chaos testing + hardening"
 
 ## Milestone 5: Documentation + Ship
-- [ ] README.md with architecture diagram
-- [ ] Design Decisions section (why Kafka/Spark/Airflow, DLQ+GE two-tier quality, Lambda-style layers)
-- [ ] Limitations section (single broker, no schema registry, future work)
-- [ ] 20-30s GIF of live dashboard updating
-- [ ] Git repo cleaned up and pushed
-- [ ] Commit: "M5: Documentation + final deployment"
+- [x] README.md with architecture diagram
+- [x] Design Decisions section (why Kafka/Spark/Airflow, DLQ+GE two-tier quality, Lambda-style layers)
+- [x] Limitations section (single broker, no schema registry, future work)
+- [x] 20-30s GIF of live dashboard updating (placeholder + capture instructions written; recording itself is a manual follow-up — see docs/dashboard-demo-instructions.md)
+- [x] Git repo cleaned up and pushed
+- [x] Commit: "M5: Documentation + final deployment"
 
 ## Stretch Goals (after M5)
 - [ ] BigQuery export task (Airflow)

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="760" fill="#ffffff"/>
+
+  <text x="600" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#111">Streaming E-Commerce Analytics Pipeline</text>
+
+  <!-- Layer backdrops -->
+  <rect x="20" y="55" width="1160" height="185" rx="10" fill="#E3F2FD" stroke="#90CAF9"/>
+  <text x="40" y="78" font-size="13" font-weight="bold" fill="#1565C0">SPEED LAYER (always-on, seconds-fresh)</text>
+
+  <rect x="20" y="255" width="1160" height="215" rx="10" fill="#E8F5E9" stroke="#A5D6A7"/>
+  <text x="40" y="278" font-size="13" font-weight="bold" fill="#2E7D32">BATCH LAYER (hourly, full-history correctness)</text>
+
+  <rect x="20" y="485" width="1160" height="110" rx="10" fill="#FFF8E1" stroke="#FFE082"/>
+  <text x="40" y="508" font-size="13" font-weight="bold" fill="#F9A825">SERVING LAYER</text>
+
+  <!-- Speed layer boxes -->
+  <rect x="45" y="100" width="140" height="60" rx="6" fill="#ffffff" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="115" y="125" text-anchor="middle" font-size="13" fill="#111">Producer</text>
+  <text x="115" y="142" text-anchor="middle" font-size="11" fill="#555">(Python, Kafka)</text>
+
+  <rect x="245" y="100" width="140" height="60" rx="6" fill="#ffffff" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="315" y="125" text-anchor="middle" font-size="13" fill="#111">Kafka</text>
+  <text x="315" y="142" text-anchor="middle" font-size="11" fill="#555">topic: orders</text>
+
+  <rect x="445" y="90" width="160" height="80" rx="6" fill="#ffffff" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="525" y="120" text-anchor="middle" font-size="13" fill="#111">Spark Structured</text>
+  <text x="525" y="137" text-anchor="middle" font-size="13" fill="#111">Streaming</text>
+  <text x="525" y="154" text-anchor="middle" font-size="11" fill="#555">validate + window</text>
+
+  <rect x="675" y="90" width="150" height="55" rx="6" fill="#ffffff" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="750" y="112" text-anchor="middle" font-size="13" fill="#111">bronze/ Parquet</text>
+  <text x="750" y="129" text-anchor="middle" font-size="11" fill="#555">partitioned by date</text>
+
+  <rect x="675" y="160" width="150" height="55" rx="6" fill="#ffffff" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="750" y="182" text-anchor="middle" font-size="13" fill="#111">Postgres</text>
+  <text x="750" y="199" text-anchor="middle" font-size="11" fill="#555">live_order_metrics</text>
+
+  <rect x="445" y="195" width="160" height="45" rx="6" fill="#FFEBEE" stroke="#C62828" stroke-width="1.5"/>
+  <text x="525" y="213" text-anchor="middle" font-size="12" fill="#111">Kafka: orders_dlq</text>
+  <text x="525" y="228" text-anchor="middle" font-size="10" fill="#555">bad records + reason</text>
+
+  <!-- Speed layer arrows -->
+  <line x1="185" y1="130" x2="243" y2="130" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="385" y1="130" x2="443" y2="130" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="605" y1="118" x2="673" y2="118" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="605" y1="150" x2="673" y2="185" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="525" y1="170" x2="525" y2="193" stroke="#C62828" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Batch layer boxes -->
+  <rect x="445" y="300" width="160" height="55" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="525" y="322" text-anchor="middle" font-size="13" fill="#111">Airflow</text>
+  <text x="525" y="339" text-anchor="middle" font-size="11" fill="#555">batch_quality_marts (@hourly)</text>
+
+  <rect x="445" y="385" width="160" height="55" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="525" y="407" text-anchor="middle" font-size="13" fill="#111">Great Expectations</text>
+  <text x="525" y="424" text-anchor="middle" font-size="10" fill="#555">validates newest partition</text>
+
+  <rect x="675" y="385" width="150" height="55" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="750" y="407" text-anchor="middle" font-size="13" fill="#111">DuckDB</text>
+  <text x="750" y="424" text-anchor="middle" font-size="10" fill="#555">rebuilds marts, full history</text>
+
+  <rect x="895" y="385" width="150" height="55" rx="6" fill="#ffffff" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="970" y="407" text-anchor="middle" font-size="13" fill="#111">Postgres</text>
+  <text x="970" y="424" text-anchor="middle" font-size="11" fill="#555">marts schema (x5 tables)</text>
+
+  <!-- Batch layer arrows -->
+  <line x1="750" y1="145" x2="750" y2="298" stroke="#333" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="758" y="270" font-size="10" fill="#555">reads bronze/</text>
+  <line x1="525" y1="355" x2="525" y2="383" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="605" y1="412" x2="673" y2="412" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="639" y="405" text-anchor="middle" font-size="9" fill="#555">on success</text>
+  <line x1="825" y1="412" x2="893" y2="412" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Serving layer box -->
+  <rect x="475" y="525" width="250" height="65" rx="6" fill="#ffffff" stroke="#F9A825" stroke-width="1.5"/>
+  <text x="600" y="550" text-anchor="middle" font-size="13" fill="#111">Streamlit Dashboard</text>
+  <text x="600" y="567" text-anchor="middle" font-size="11" fill="#555">Live tab · Analytics tab</text>
+  <text x="600" y="582" text-anchor="middle" font-size="10" fill="#777">auto-refresh every 5s</text>
+
+  <!-- Serving layer arrows -->
+  <line x1="750" y1="215" x2="750" y2="440" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)" stroke-opacity="0"/>
+  <path d="M 750 215 C 750 350, 650 480, 620 523" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 970 440 C 970 500, 750 520, 680 523" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Legend -->
+  <text x="40" y="720" font-size="11" fill="#555">Solid arrows: data flow. Dashed arrow: full-history read (not just the newest partition). Red box: dead-letter path for records that fail in-stream validation.</text>
+</svg>

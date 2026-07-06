@@ -1,4 +1,4 @@
-.PHONY: up down produce demo test clean logs
+.PHONY: up down produce demo test chaos-test clean logs
 
 up:
 	docker compose up -d
@@ -13,13 +13,16 @@ logs:
 	docker compose logs -f
 
 produce:
-	python producer/producer.py
+	docker compose --profile tools run --rm producer
 
 demo:
 	streamlit run dashboard/app.py
 
 test:
 	pytest tests/ -v
+
+chaos-test:
+	pytest tests/test_chaos.py -v -m chaos
 
 clean:
 	docker compose down -v
@@ -39,5 +42,6 @@ help:
 	@echo "  logs     - Tail service logs"
 	@echo "  produce  - Run the event producer (stream orders)"
 	@echo "  demo     - Open the Streamlit dashboard"
-	@echo "  test     - Run pytest"
+	@echo "  test       - Run pytest (fast, unit tests only, no Docker needed)"
+	@echo "  chaos-test - Restart-resilience + gold-marts idempotence tests (requires 'make up' first)"
 	@echo "  clean    - Tear down and remove all data volumes"

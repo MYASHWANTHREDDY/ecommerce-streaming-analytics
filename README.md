@@ -127,7 +127,14 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic orders_dlq --from-beginning --max-messages 20
 ```
 
+Open the dashboard: visit `http://localhost:8501` after running `make demo` — the Live tab should visibly update every 5s, and the Analytics tab should show all 5 gold marts.
+
 ## Development
+
+### Testing
+
+- `make test` — fast pytest unit suite (`tests/test_validation.py`, the producer's event/corruption logic). No Docker required, runs in seconds.
+- `make chaos-test` — restart-resilience + gold-marts idempotence tests (`tests/test_chaos.py`). Requires `make up` (and ideally the stack having processed some traffic) first; restarts the `spark` container and re-runs the Airflow DAG's `build_gold_marts` task twice, so it takes a few minutes. Excluded from `make test` by default via `pytest.ini`'s `chaos` marker.
 
 ### Milestones
 
@@ -165,7 +172,7 @@ The producer converts rows into timestamped JSON events and deliberately corrupt
 - [x] Milestone 1: Kafka + producer
 - [x] Milestone 2: Spark Structured Streaming
 - [x] Milestone 3: Airflow + Great Expectations
-- [ ] Milestone 4: Dashboard + hardening
+- [x] Milestone 4: Dashboard + hardening
 - [ ] Milestone 5: Documentation
 
 ## Contact & Questions

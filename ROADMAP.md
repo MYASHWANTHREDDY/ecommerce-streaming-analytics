@@ -27,13 +27,13 @@ Track progress through the project build here.
 - [x] Commit: "M3: Airflow DAGs + Great Expectations quality checks"
 
 ## Milestone 4: Dashboard + Hardening
-- [ ] dashboard/app.py in Streamlit (Live page + Analytics page)
-- [ ] Live page reads live_order_metrics, auto-refreshes every 5s
-- [ ] Analytics page reads gold marts
-- [ ] tests/test_validation.py with pytest
-- [ ] Chaos tests: restart containers, replay events, verify idempotence
-- [ ] Containerize producer, wire up Makefile (make up/produce/demo)
-- [ ] Commit: "M4: Streamlit dashboard + chaos testing + hardening"
+- [x] dashboard/app.py in Streamlit (Live page + Analytics page)
+- [x] Live page reads live_order_metrics, auto-refreshes every 5s
+- [x] Analytics page reads gold marts
+- [x] tests/test_validation.py with pytest
+- [x] Chaos tests: restart containers, replay events, verify idempotence
+- [x] Containerize producer, wire up Makefile (make up/produce/demo)
+- [x] Commit: "M4: Streamlit dashboard + chaos testing + hardening"
 
 ## Milestone 5: Documentation + Ship
 - [ ] README.md with architecture diagram

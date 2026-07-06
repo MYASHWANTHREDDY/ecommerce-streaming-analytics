@@ -9,13 +9,13 @@ Track progress through the project build here.
 - [x] Commit: "M1: Kafka + producer streaming order events"
 
 ## Milestone 2: Spark Structured Streaming
-- [ ] streaming/schemas.py with explicit StructType for order events
-- [ ] streaming/stream_orders.py reading from Kafka
-- [ ] In-stream validation (schema, nulls, ranges)
-- [ ] Invalid records → orders_dlq topic
-- [ ] Valid records → bronze/ parquet + live_order_metrics aggregates → Postgres
-- [ ] Checkpointing + restart test (kill job, restart, verify no duplicates)
-- [ ] Commit: "M2: Spark Structured Streaming with validation + dead-letter queue"
+- [x] streaming/schemas.py with explicit StructType for order events
+- [x] streaming/stream_orders.py reading from Kafka
+- [x] In-stream validation (schema, nulls, ranges)
+- [x] Invalid records → orders_dlq topic
+- [x] Valid records → bronze/ parquet + live_order_metrics aggregates → Postgres
+- [x] Checkpointing + restart test (kill job, restart, verify no duplicates)
+- [x] Commit: "M2: Spark Structured Streaming with validation + dead-letter queue"
 
 ## Milestone 3: Airflow + Great Expectations
 - [ ] Airflow service in compose (LocalExecutor)

@@ -111,9 +111,20 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic orders --from-beginning --max-messages 20
 ```
 
-Check Postgres:
+Check Postgres (live windowed aggregates, written by the Spark job):
 ```bash
-psql -h localhost -p 5433 -U pipeline -d analytics -c "SELECT COUNT(*) FROM live_order_metrics;"
+psql -h localhost -p 5433 -U pipeline -d analytics -c "SELECT * FROM live_order_metrics ORDER BY window_start DESC LIMIT 10;"
+```
+
+Check bronze Parquet output (valid events, partitioned by date):
+```bash
+ls bronze/
+```
+
+Watch the dead-letter queue (records that failed validation, with a `dlq_reason`):
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic orders_dlq --from-beginning --max-messages 20
 ```
 
 ## Development
@@ -152,7 +163,7 @@ The producer converts rows into timestamped JSON events and deliberately corrupt
 ## Next Steps
 
 - [x] Milestone 1: Kafka + producer
-- [ ] Milestone 2: Spark Structured Streaming
+- [x] Milestone 2: Spark Structured Streaming
 - [ ] Milestone 3: Airflow + Great Expectations
 - [ ] Milestone 4: Dashboard + hardening
 - [ ] Milestone 5: Documentation

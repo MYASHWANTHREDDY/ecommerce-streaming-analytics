@@ -62,5 +62,47 @@ services:
       timeout: 5s
       retries: 5
 
+  spark:
+    build:
+      context: .
+      dockerfile: streaming/Dockerfile
+    container_name: spark
+    depends_on:
+      kafka:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      # Container-internal Kafka address (distinct from the producer's host-oriented
+      # KAFKA_BOOTSTRAP, since Spark runs inside the compose network, not on the host)
+      KAFKA_BOOTSTRAP_INTERNAL: kafka:9092
+      KAFKA_TOPIC_ORDERS: orders
+      KAFKA_TOPIC_DLQ: orders_dlq
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: analytics
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+      BRONZE_PATH: /data/bronze
+      CHECKPOINT_ROOT: /data/checkpoints
+    volumes:
+      # Bind-mount shadows the image's COPY'd code for fast dev iteration (edit + restart,
+      # no rebuild needed unless the Dockerfile/dependencies themselves change).
+      - ./streaming:/opt/spark-app
+      # Host-visible so bronze/checkpoints survive container restarts (required for the
+      # restart/no-duplicates test) and match the Makefile's `clean` target.
+      - ./bronze:/data/bronze
+      - ./checkpoints:/data/checkpoints
+      # Persists --packages jar resolution across restarts (avoids re-fetching from Maven
+      # Central every time the container restarts). Bind-mounted (not a named volume) so it's
+      # writable by the container's non-root spark user, matching bronze/checkpoints above.
+      - ./ivy2-cache:/data/ivy2
+    restart: unless-stopped
+    command: >
+      /opt/spark/bin/spark-submit
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.2,org.postgresql:postgresql:42.7.12
+      --conf spark.jars.ivy=/data/ivy2
+      /opt/spark-app/stream_orders.py
+
 volumes:
   pgdata:

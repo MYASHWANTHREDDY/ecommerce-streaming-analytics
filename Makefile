@@ -26,7 +26,9 @@ chaos-test:
 
 clean:
 	docker compose down -v
-	rm -rf pgdata/ bronze/ checkpoints/
+	# pgdata is a named Docker volume (removed above by `down -v`, not a host folder);
+	# these are the actual gitignored host-side directories that accumulate over time.
+	rm -rf bronze/ checkpoints/ ivy2-cache/ airflow/logs/ great_expectations/gx/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete
 
@@ -37,11 +39,11 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  up       - Start all services (Kafka, Postgres, Airflow)"
-	@echo "  down     - Stop all services"
-	@echo "  logs     - Tail service logs"
-	@echo "  produce  - Run the event producer (stream orders)"
-	@echo "  demo     - Open the Streamlit dashboard"
+	@echo "  up         - Start all services (Kafka, Postgres, Spark, Airflow)"
+	@echo "  down       - Stop all services"
+	@echo "  logs       - Tail service logs"
+	@echo "  produce    - Run the event producer (stream orders)"
+	@echo "  demo       - Open the Streamlit dashboard"
 	@echo "  test       - Run pytest (fast, unit tests only, no Docker needed)"
 	@echo "  chaos-test - Restart-resilience + gold-marts idempotence tests (requires 'make up' first)"
-	@echo "  clean    - Tear down and remove all data volumes"
+	@echo "  clean      - Tear down containers/volumes and remove all generated data"

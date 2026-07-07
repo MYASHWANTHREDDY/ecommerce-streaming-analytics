@@ -16,3 +16,6 @@ great_expectations/gx/
 .env
 .DS_Store
 venv/
+
+# Local Claude Code settings/session data — not part of the project
+.claude/

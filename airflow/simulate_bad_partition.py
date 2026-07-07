@@ -1,8 +1,7 @@
 """
-One-off manual demonstration that GX validation actually catches bad data (Milestone 3
-acceptance criterion: "Test with bad data -> DAG fails as expected"). Not a pytest suite
-(that's Milestone 4's tests/ directory) and not a DAG (kept out of airflow/dags/ so the
-scheduler doesn't try to parse it).
+One-off manual demonstration that GX validation actually catches bad data. Not a pytest
+suite (see tests/ for that) and not a DAG (kept out of airflow/dags/ so the scheduler
+doesn't try to parse it).
 
 Loads the real latest bronze partition, corrupts a couple of rows in memory only, and
 runs it through the exact same run_bronze_validation() the DAG calls. Never writes

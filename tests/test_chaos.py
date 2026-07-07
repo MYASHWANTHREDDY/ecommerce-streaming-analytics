@@ -60,8 +60,8 @@ def _produce_burst(rate=500):
 def _remove_orphaned_bronze_files():
     """A `docker compose kill` (ungraceful shutdown, used by the restart test in this same
     file) can leave a partial/corrupt Parquet file behind that Spark's own _spark_metadata
-    commit log never counted (confirmed during Milestone 3) -- a non-Spark reader like
-    DuckDB chokes on these ("No magic bytes found" / "too small to be a Parquet file").
+    commit log never counted -- a non-Spark reader like DuckDB chokes on these
+    ("No magic bytes found" / "too small to be a Parquet file").
     Clean up any such orphans before trusting a DuckDB-based read of the whole bronze
     directory, so this test doesn't fail on a side effect of the other chaos test."""
     if not BRONZE_DIR.exists():
@@ -93,7 +93,7 @@ def _wait_for_running(service: str, timeout: int = 90, poll_interval: int = 5) -
 
 
 def test_restart_spark_recovers_without_losing_or_stalling_data():
-    """Automates Milestone 2's manual restart test.
+    """Kills the spark container mid-stream and confirms it comes back cleanly.
 
     The Postgres sink already upserts on (window_start, region, sales_channel) with
     SET order_count = EXCLUDED.order_count (overwrite, not increment), so literal
@@ -117,11 +117,10 @@ def test_restart_spark_recovers_without_losing_or_stalling_data():
     _produce_burst()
 
     # Poll rather than a single fixed-time check: "container reports running" (checked
-    # above) is not the same moment as "the streaming query has finished JVM/package-
-    # resolution startup and resumed consuming" -- that gap varies by machine. Confirmed
-    # empirically that a fixed 75s wait here was sometimes too short purely on timing (the
-    # count kept climbing and caught up shortly after) -- polling up to 3 minutes removes
-    # that false-failure risk without weakening what's actually being asserted.
+    # above) isn't the same moment as "the streaming query finished JVM/package-resolution
+    # startup and resumed consuming" -- that gap varies by machine, so a single fixed wait
+    # can false-fail even though the count is still climbing. Polling for up to 3 minutes
+    # avoids that without weakening what's actually being asserted.
     deadline = time.monotonic() + 180
     total_after = total_before
     while time.monotonic() < deadline:
@@ -140,7 +139,7 @@ def test_build_gold_marts_task_is_idempotent():
     inside the task itself. So the real idempotence property to prove is: running the exact
     same task against the exact same bronze data twice yields byte-identical gold tables --
     not doubled, not drifted. Forcing literal duplicate Kafka messages through the live
-    streaming path wouldn't test anything Milestone 2's restart test didn't already prove.
+    streaming path wouldn't test anything the restart test above doesn't already cover.
 
     The `spark` service runs continuously (restart: unless-stopped) and keeps consuming
     new Kafka messages the whole time this test suite runs -- if left running, bronze

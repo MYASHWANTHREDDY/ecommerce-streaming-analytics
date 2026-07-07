@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS live_order_metrics (
     PRIMARY KEY (window_start, region, sales_channel)
 );
 
--- Gold marts will be created by Airflow DAGs (Milestone 3)
--- Placeholder comment: fulfillment_time_by_region, profit_margin_by_item, etc. to follow
+-- Gold mart tables (fulfillment time, profit margin, etc.) live in 02_marts_schema.sql,
+-- rebuilt hourly by airflow/dags/batch_quality_marts.py.

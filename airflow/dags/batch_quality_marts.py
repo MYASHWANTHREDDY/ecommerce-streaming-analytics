@@ -17,7 +17,7 @@ MARTS_SQL_DIR = Path(os.environ.get("MARTS_SQL_DIR", "/opt/airflow/sql/marts"))
     catchup=False,
     max_active_runs=1,
     default_args={"retries": 1, "retry_delay": pendulum.duration(minutes=5)},
-    tags=["milestone3", "gold-marts", "quality"],
+    tags=["gold-marts", "quality"],
 )
 def batch_quality_marts():
     @task

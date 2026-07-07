@@ -1,27 +1,25 @@
 # Streaming E-Commerce Analytics Pipeline
 
-A real-time event-streaming platform for e-commerce order analytics, built with Apache Kafka, Spark Structured Streaming, Apache Airflow, and Great Expectations.
-
-**Status:** Complete — all 5 milestones shipped (Kafka → Spark → Postgres/bronze → Airflow/GE → gold marts → Streamlit).
+A real-time event pipeline for e-commerce order analytics — Kafka, Spark Structured Streaming, Airflow, Great Expectations, and a Streamlit dashboard, all wired together with Docker Compose.
 
 ## Quick Start
 
 ```bash
-# Terminal 1: Start all services
+# Terminal 1: start everything
 make up
 
-# Terminal 2: Stream order events
+# Terminal 2: stream order events
 make produce
 
-# Terminal 3: Open the dashboard
+# Terminal 3: dashboard
 make demo
 ```
 
-Then visit `http://localhost:8501` to see live order metrics updating in real time.
+Visit `http://localhost:8501` to watch order metrics update in real time.
 
 ![Live dashboard demo](docs/dashboard-demo.gif)
 
-*(Not recorded yet in this environment — see [docs/dashboard-demo-instructions.md](docs/dashboard-demo-instructions.md) for how to capture it.)*
+*(GIF not recorded yet — see [docs/dashboard-demo-instructions.md](docs/dashboard-demo-instructions.md).)*
 
 ## Architecture
 
@@ -42,175 +40,123 @@ Then visit `http://localhost:8501` to see live order metrics updating in real ti
 
 </details>
 
-**Speed layer (Kafka → Spark):** Always-running stream computing 1-minute windowed metrics (order count, revenue by region/channel). Results land in `live_order_metrics` table.
+**Speed layer:** Spark reads from Kafka continuously, computes 1-minute windowed metrics (order count, revenue by region/channel), and writes them into `live_order_metrics` in Postgres.
 
-**Batch layer (Airflow → GE → SQL):** Hourly DAG validates bronze parquet with Great Expectations, then builds gold marts (fulfillment time, profit margins, top items) via SQL.
+**Batch layer:** An hourly Airflow DAG validates the newest bronze partition with Great Expectations, then rebuilds the gold marts (fulfillment time, profit margins, top items) with DuckDB.
 
-**Serving layer (Postgres → Streamlit):** Two-page dashboard — live metrics (speed layer) and analytics (batch layer).
+**Serving layer:** A Streamlit dashboard — a Live tab reading the speed layer, an Analytics tab reading the batch layer.
 
-## Design Decisions
+## Why these tools
 
-- **Kafka as the ingestion buffer.** Decouples the producer's rate from whatever's consuming it, gives durable replay (useful for the chaos/restart tests), and makes a dead-letter pattern natural — bad records get a topic of their own instead of being silently dropped.
-- **Spark Structured Streaming for the speed layer.** Native Kafka source/sink, and its checkpoint-based recovery is what actually let the Milestone 2/4 restart tests pass — kill the container, bring it back, it resumes from the last committed offset instead of reprocessing or losing data.
-- **Airflow with `LocalExecutor`, not Airflow 3.** Airflow 3's `LocalExecutor` needs an api-server, scheduler, dag-processor, and triggerer running concurrently — real overhead for what's ultimately one hourly DAG. Airflow 2.11's classic webserver+scheduler pair was the right amount of machinery for this job, made explicitly during Milestone 3 planning after checking what Airflow 3 would have actually cost to run here.
-- **DuckDB, not Spark, for the gold marts.** The batch layer needs real SQL over a Parquet lake, not a second Spark job — DuckDB reads the Hive-partitioned bronze files directly and writes straight into Postgres via its `postgres` extension, with no JVM and no coupling to the streaming job's lifecycle.
-- **Two-tier data quality: in-stream validation + Great Expectations.** Spark's in-stream checks (schema, nulls, ranges) are fast and cheap but purely structural. Great Expectations re-validates the *newest* bronze partition with business-rule checks (categorical membership, date ordering, freshness) as a second, independent gate — deliberately scoped to only the newest partition, so it acts as a freshness/quality gate on new data rather than re-litigating history on every run. The gold marts, by contrast, rebuild from the *full* bronze history every run — a different table gets rebuilt completely, quality gets checked incrementally.
-- **Lambda-style dual layers, not a single streaming-only (Kappa) design.** The speed layer optimizes for freshness — seconds-old order counts and revenue. The batch layer optimizes for richer, less time-sensitive aggregates (fulfillment time, profit margin) that don't need to exist in real time and are cheaper to compute correctly over the full dataset on a schedule. Running both is more moving parts than picking one, but it's also what actually demonstrates the tradeoff rather than asserting it.
-- **Docker Compose for everything.** Every service was added incrementally, one per milestone, and `make up`/`make down` staying a one-command operation throughout was a deliberate constraint, not an afterthought.
+- **Kafka** as the ingestion buffer — decouples the producer's pace from whatever's consuming it, gives durable replay, and makes a dead-letter pattern natural (bad records get their own topic instead of being dropped).
+- **Spark Structured Streaming** for the speed layer — native Kafka source/sink, and checkpoint-based recovery means killing the Spark container and bringing it back resumes from the last committed offset instead of reprocessing or losing data.
+- **Airflow 2.x with `LocalExecutor`, not Airflow 3** — Airflow 3's `LocalExecutor` needs an api-server, scheduler, dag-processor, and triggerer all running at once, which felt like a lot of extra containers for what's really just one hourly DAG.
+- **DuckDB, not Spark, for the gold marts** — the batch layer just needs SQL over a Parquet lake. DuckDB reads the bronze files directly and writes into Postgres through its own `postgres` extension, no second JVM job required.
+- **Two-tier data quality** — Spark's in-stream checks (schema, nulls, ranges) are fast but only structural. Great Expectations re-checks the newest bronze partition with business-rule checks (valid categories, date ordering, freshness) as a second, independent gate. The gold marts, by contrast, rebuild from the full bronze history every run.
+- **A speed layer *and* a batch layer**, instead of one streaming-only pipeline — the speed layer optimizes for freshness (seconds-old numbers), the batch layer for richer aggregates that don't need to be real-time.
+- **Docker Compose** for the whole stack — one command to bring everything up or down.
 
 ## Tech Stack
 
 - **Ingestion:** Apache Kafka 3.8.0 (KRaft mode, no ZooKeeper)
-- **Streaming:** Apache Spark Structured Streaming (Kafka source, Parquet + JDBC sinks)
+- **Streaming:** Apache Spark Structured Streaming
 - **Orchestration:** Apache Airflow (LocalExecutor)
-- **Data Quality:** Great Expectations (expectations + data-docs)
-- **Storage:** PostgreSQL 16 (serving), Parquet files (bronze)
+- **Data Quality:** Great Expectations
+- **Storage:** PostgreSQL 16 + Parquet (bronze layer)
 - **Dashboard:** Streamlit
-- **Containerization:** Docker Compose
+- **Containers:** Docker Compose
 - **Language:** Python 3.10+
 
 ## Key Features
 
-1. **Real-time event ingestion:** Python producer replays the dataset as JSON events into Kafka at configurable rate (default 100 events/sec).
-2. **In-stream validation:** Kafka → Spark checks for schema violations, nulls, value ranges; invalid records routed to dead-letter queue.
-3. **Windowed aggregations:** 1-minute tumbling windows on order count and revenue, partitioned by region and sales channel, written to Postgres.
-4. **Scheduled quality gates:** Hourly Airflow DAG runs Great Expectations suite on bronze parquet before building gold marts.
-5. **Automated analytics:** SQL transforms compute core e-commerce KPIs (fulfillment time, profit margins, regional sales, etc.) as scheduled jobs.
-6. **Live dashboard:** Streamlit app auto-refreshes metrics from both speed and batch layers.
+1. Producer replays a dataset as JSON events into Kafka at a configurable rate, deliberately corrupting ~2% of records to exercise the quality checks downstream.
+2. In-stream validation in Spark (schema, nulls, ranges) — bad records go to a dead-letter topic instead of being silently dropped.
+3. 1-minute windowed aggregations by region and sales channel, written to Postgres.
+4. Hourly Great Expectations validation before rebuilding the gold marts.
+5. SQL-based analytics: fulfillment time, profit margins, regional sales, top items, channel performance.
+6. Live dashboard, auto-refreshing every 5 seconds.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Docker Desktop (Windows/Mac/Linux)
-- Python 3.10+ (for running producer locally)
-- 4GB RAM (recommended for Spark container)
+- Docker Desktop
+- Python 3.10+
+- ~4GB RAM free for the Spark container
 
 ### Setup
 
 1. Clone the repo.
-2. Download the dataset:
+2. Grab the dataset (a 1k-row sample is already committed for quick testing; the full version is optional):
    ```bash
-   # Download from: https://excelbianalytics.com/wp/downloads-18-sample-csv-files-data-sets-for-testing-sales/
-   # Unzip and place at: data/dataset.csv
+   # https://excelbianalytics.com/wp/downloads-18-sample-csv-files-data-sets-for-testing-sales/
+   # unzip and place at data/dataset.csv
    ```
-   (A 1k-row sample is committed; the full 1M-row file is optional.)
-
-3. Install Python dependencies (ideally in a venv):
+3. Install dependencies:
    ```bash
    python -m venv .venv
-   .venv\Scripts\activate   # Windows; use `source .venv/bin/activate` on Mac/Linux
+   .venv\Scripts\activate   # or `source .venv/bin/activate` on Mac/Linux
    pip install -r requirements.txt
    cp .env.example .env
    ```
+4. `make up`, then `make produce` in another terminal, then `make demo` in a third.
 
-4. Start services:
-   ```bash
-   make up
-   ```
+### Verify it's working
 
-5. In another terminal, stream events:
-   ```bash
-   make produce
-   ```
-
-6. In a third terminal, open the dashboard:
-   ```bash
-   make demo
-   ```
-
-### Verify Setup
-
-Check that all services are running:
 ```bash
 docker compose ps
 ```
 
-Watch Kafka events:
+Watch events flow through Kafka:
 ```bash
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic orders --from-beginning --max-messages 20
 ```
 
-Check Postgres (live windowed aggregates, written by the Spark job):
+Check the live aggregates:
 ```bash
 psql -h localhost -p 5433 -U pipeline -d analytics -c "SELECT * FROM live_order_metrics ORDER BY window_start DESC LIMIT 10;"
 ```
 
-Check bronze Parquet output (valid events, partitioned by date):
+Check bronze output:
 ```bash
 ls bronze/
 ```
 
-Watch the dead-letter queue (records that failed validation, with a `dlq_reason`):
+Watch the dead-letter queue:
 ```bash
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic orders_dlq --from-beginning --max-messages 20
 ```
 
-Open the dashboard: visit `http://localhost:8501` after running `make demo` — the Live tab should visibly update every 5s, and the Analytics tab should show all 5 gold marts.
+Dashboard: `http://localhost:8501` — Live tab should update every 5s, Analytics tab should show all 5 gold marts (trigger the DAG manually with `docker compose exec airflow-scheduler airflow dags trigger batch_quality_marts` if you don't want to wait for the hourly schedule).
 
-## Development
+## Testing
 
-### Testing
-
-- `make test` — fast pytest unit suite (`tests/test_validation.py`, the producer's event/corruption logic). No Docker required, runs in seconds.
-- `make chaos-test` — restart-resilience + gold-marts idempotence tests (`tests/test_chaos.py`). Requires `make up` (and ideally the stack having processed some traffic) first; restarts the `spark` container and re-runs the Airflow DAG's `build_gold_marts` task twice, so it takes a few minutes. Excluded from `make test` by default via `pytest.ini`'s `chaos` marker.
-
-### Milestones
-
-See ROADMAP.md for the step-by-step build plan.
-
-### Commits
-
-Each milestone has a clear commit:
-- `M1: Kafka + producer streaming order events`
-- `M2: Spark Structured Streaming with validation + dead-letter queue`
-- `M3: Airflow DAGs + Great Expectations quality checks`
-- `M4: Streamlit dashboard + chaos testing + hardening`
-- `M5: Documentation + final deployment`
-
-### Explanations
-
-For each piece, I can explain:
-- **Kafka listeners & advertised-listeners:** Why three listener protocols and how they route traffic.
-- **Checkpointing:** How Spark resumes from Kafka offsets after a crash.
-- **Exactly-once semantics:** The combination of Spark checkpoints + Postgres upsert keys.
-- **Dead-letter queue:** Why invalid events are routed separately instead of dropped.
-- **Two-tier quality:** Why validation is in-stream (fast, cheap) and expectations are batch (thorough, consistent).
-- **Lambda architecture:** Why some metrics live in the speed layer (freshness) and others in batch (correctness).
+- `make test` — fast unit tests for the producer's event/corruption logic. No Docker needed, runs in seconds.
+- `make chaos-test` — restarts the Spark container mid-stream and re-runs the Airflow DAG twice to check idempotence. Needs `make up` first; takes a few minutes.
 
 ## Dataset
 
-E-commerce transactions from ExcelBI Analytics (https://excelbianalytics.com/wp/downloads-18-sample-csv-files-data-sets-for-testing-sales/).
+E-commerce transactions from [ExcelBI Analytics](https://excelbianalytics.com/wp/downloads-18-sample-csv-files-data-sets-for-testing-sales/) — region, country, item type, sales channel, priority, units/pricing, order and ship dates.
 
-Columns: Region, Country, Item Type, Sales Channel, Order Priority, Units Sold, Unit Price, Unit Cost, Order Date, Ship Date.
-
-The producer converts rows into timestamped JSON events and deliberately corrupts ~2% (missing fields, negative prices, type mismatches) to test data quality handling.
+The producer converts rows into JSON events with fresh timestamps and deliberately corrupts ~2% of them (missing fields, negative prices, type mismatches, bad date ordering, malformed JSON) to exercise the validation and dead-letter logic.
 
 ## Limitations
 
-Honest gaps, most of them found by actually running the chaos tests and restart drills rather than reasoned about in the abstract:
+- Single Kafka broker, replication factor 1 — no fault tolerance if it dies.
+- No schema registry — raw JSON over Kafka, so schema drift only ever gets caught downstream (Spark / Great Expectations), never at publish time.
+- The dead-letter sink is at-least-once, not exactly-once — fine since it's a diagnostic side channel, not the primary data path.
+- A non-Spark reader of `bronze/` (DuckDB) can see uncommitted files if Spark shuts down ungracefully, since only Spark's own metadata log tracks what's actually committed. Ran into this a couple of times while testing restarts and worked around it, but it's not fixed at the architecture level.
+- Single Postgres instance, no replication.
+- Dev-grade secrets — plaintext `.env`, Airflow's default `admin`/`admin` login. Fine locally, not how this would run in production.
+- No dashboard auth, no CI, no monitoring/alerting beyond logs and the test suites.
+- Single-node Spark — demonstrates the Structured Streaming API correctly, not distributed scale.
 
-- **Single Kafka broker, replication factor 1.** No fault tolerance if the broker itself dies — a real deployment needs a multi-broker cluster.
-- **No schema registry.** Events are raw JSON over Kafka; there's no Avro/Protobuf + compatibility enforcement at publish time. Schema drift is only ever caught downstream, by Spark's `from_json` or Great Expectations — never at the point of ingestion.
-- **The dead-letter Kafka sink is at-least-once, not exactly-once.** A crash mid-batch could in theory duplicate a DLQ message. Acceptable here since it's a diagnostic side-channel, not the primary data path (documented in `streaming/stream_orders.py`).
-- **A non-Spark reader of `bronze/` can see uncommitted files after an ungraceful Spark shutdown.** Only Spark's own `_spark_metadata` commit log knows which Parquet files are actually committed; DuckDB's plain glob doesn't. Hit this twice in practice (once manually in Milestone 3, once inside the Milestone 4 chaos test) and worked around it both times — not fixed at the architecture level.
-- **Single Postgres instance.** No replication, no HA.
-- **Dev-grade secrets.** Plaintext `.env`, Airflow's default `admin`/`admin` login. Fine for local development, not how this would ship to production.
-- **No dashboard authentication, no CI/CD, no monitoring/alerting stack** beyond container logs and the pytest/chaos suites — nothing runs those automatically on push.
-- **Single-node Spark.** Demonstrates the Structured Streaming API correctly, but not distributed scale.
+## Ideas for later
 
-**Future work:** schema registry, multi-broker Kafka, CI/CD — plus the stretch goals already tracked in [ROADMAP.md](ROADMAP.md#stretch-goals-after-m5) (BigQuery export, Looker Studio, a real two-event-type fulfillment design).
-
-## Next Steps
-
-- [x] Milestone 1: Kafka + producer
-- [x] Milestone 2: Spark Structured Streaming
-- [x] Milestone 3: Airflow + Great Expectations
-- [x] Milestone 4: Dashboard + hardening
-- [x] Milestone 5: Documentation
-
-## Contact & Questions
-
-For interview walkthroughs of any component, see the "Explanations" section above.
+- Schema registry (Avro/Protobuf) instead of raw JSON
+- Multi-broker Kafka
+- CI running the test suite on every push
+- BigQuery export + a Looker Studio dashboard on top
+- A real two-event design (`order_placed` + `order_shipped`) so fulfillment time comes from actual streaming events instead of the dataset's static dates

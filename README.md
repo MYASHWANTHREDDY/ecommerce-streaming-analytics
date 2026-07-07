@@ -1,5 +1,7 @@
 # Streaming E-Commerce Analytics Pipeline
 
+[![CI](https://github.com/MYASHWANTHREDDY/ecommerce-streaming-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/MYASHWANTHREDDY/ecommerce-streaming-analytics/actions/workflows/ci.yml)
+
 A real-time event pipeline for e-commerce order analytics — Kafka, Spark Structured Streaming, Airflow, Great Expectations, and a Streamlit dashboard, all wired together with Docker Compose.
 
 ## Quick Start

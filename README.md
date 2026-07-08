@@ -159,6 +159,9 @@ The producer converts rows into JSON events with fresh timestamps and deliberate
 
 - Schema registry (Avro/Protobuf) instead of raw JSON
 - Multi-broker Kafka
-- CI running the test suite on every push
 - BigQuery export + a Looker Studio dashboard on top
 - A real two-event design (`order_placed` + `order_shipped`) so fulfillment time comes from actual streaming events instead of the dataset's static dates
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for what's changed over time.

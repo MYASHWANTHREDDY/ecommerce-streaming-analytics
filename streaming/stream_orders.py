@@ -145,6 +145,19 @@ def main():
         .when(p["units_sold"] < 0, lit("negative_value:units_sold"))
         .when(p["unit_price"] < 0, lit("negative_value:unit_price"))
         .when(p["total_revenue"] < 0, lit("negative_value:total_revenue"))
+        # Absolute-magnitude sanity check, checked before revenue_quantity_mismatch below
+        # so it wins the label: producer/events.py's extreme_outlier_numeric sets one field
+        # to an absurd fixed value (2e9 units, $1e9/unit, or $1e12 total) without rebalancing
+        # the other two, so without this check every extreme_outlier_numeric record was
+        # falling through to revenue_quantity_mismatch instead -- caught in the DLQ either
+        # way, but mislabeled, confirmed by actually consuming DLQ output and finding
+        # revenue_quantity_mismatch at 2x the count the producer's own corruption tally
+        # said it should be. Thresholds sit an order of magnitude above data/sample_1k.csv's
+        # real max (units_sold ~9991, unit_price ~668, total_revenue ~6.67M) and three
+        # orders of magnitude below the corrupted values, so real data can never trip this.
+        .when(p["units_sold"] > 100_000, lit("extreme_outlier_numeric"))
+        .when(p["unit_price"] > 10_000, lit("extreme_outlier_numeric"))
+        .when(p["total_revenue"] > 100_000_000, lit("extreme_outlier_numeric"))
         # Cross-field check: a schema (Avro or otherwise) can only validate one field at
         # a time, so total_revenue can be a perfectly valid, non-negative double while
         # still being inconsistent with units_sold * unit_price. Relative + small

@@ -246,6 +246,17 @@ services:
     command: ["--kafka.server=kafka:9092"]
     ports:
       - "9308:9308"
+    # `depends_on: service_started` only waits for kafka's container process to
+    # start, not for its broker listener to actually accept connections (which
+    # takes a few more seconds) -- kafka has no healthcheck to depend on instead
+    # (adding one would be an existing-service change, which this section is
+    # deliberately avoiding). kafka-exporter has no internal retry and exits
+    # fatally on its first failed connection, so it loses that race on a fresh
+    # `docker compose up`. restart: on-failure lets Compose just retry it, and
+    # by the second attempt kafka is up. Confirmed this is the actual failure
+    # mode, not guessed: kafka-exporter's own log shows `connection refused`
+    # against kafka:9092, not an auth/config error.
+    restart: on-failure
 
   prometheus:
     image: prom/prometheus:v3.11.1

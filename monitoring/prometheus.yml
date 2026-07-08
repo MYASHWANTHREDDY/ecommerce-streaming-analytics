@@ -13,12 +13,16 @@ scrape_configs:
     static_configs:
       - targets: ["kafka-exporter:9308"]
 
-  # Driver's built-in Prometheus servlet. Path confirmed against the official Spark
-  # 4.1.2 docs (spark.apache.org/docs/latest/monitoring.html): Driver / port 4040 /
-  # "/metrics/prometheus/". spark.ui.prometheus.enabled defaults to true as of Spark
-  # 4.0 (SPARK-46886) -- the explicit --conf in docker-compose.yml's spark command is
-  # for clarity, not strictly required on this Spark version.
+  # Driver's built-in Prometheus servlet. The docs page names the feature but not the
+  # exact path; running it found the real one by trial: /metrics/prometheus/ 404s,
+  # /metrics/executors/prometheus/ is what spark.ui.prometheus.enabled actually serves
+  # (SPARK-29032) -- per-executor JVM/task/GC gauges only. Structured-streaming query
+  # metrics (batch latency, rows/sec) that spark.sql.streaming.metricsEnabled=true turns
+  # on do exist (confirmed live at /metrics/json/, keyed by query UUID) but aren't
+  # exposed on any Prometheus-format path Spark ships out of the box, so the "Spark
+  # Structured Streaming Latency" dashboard panel has no data source today -- would need
+  # a custom metrics.properties sink to close that gap, out of scope for this pass.
   - job_name: spark
-    metrics_path: /metrics/prometheus/
+    metrics_path: /metrics/executors/prometheus/
     static_configs:
       - targets: ["spark:4040"]

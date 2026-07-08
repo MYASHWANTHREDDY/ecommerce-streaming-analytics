@@ -1,0 +1,29 @@
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Generated pipeline data/state -- never needed inside a build context.
+pgdata/
+bronze/
+checkpoints/
+ivy2-cache/
+# Contains a Unix-style "latest" symlink Airflow creates that Docker's build
+# context transfer can't read back out cleanly from a Windows host -- this is
+# the actual bug that motivated adding this file, not just general hygiene.
+airflow/logs/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+great_expectations/gx/
+
+# Local-only files that must never end up inside an image.
+.env
+secrets/
+data/dataset.csv
+
+.DS_Store
+.claude/

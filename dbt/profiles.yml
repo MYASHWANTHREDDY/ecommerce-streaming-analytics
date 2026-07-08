@@ -17,3 +17,10 @@ ecommerce_marts:
         - path: "dbname={{ env_var('POSTGRES_DB') }} user={{ env_var('POSTGRES_USER') }} password={{ env_var('POSTGRES_PASSWORD') }} host={{ env_var('POSTGRES_HOST') }} port={{ env_var('POSTGRES_PORT') }}"
           type: postgres
           alias: analytics_db
+      # DuckDB can't write to two attached databases (the local `main` table
+      # from materialization, then `analytics_db` from the post-hook) inside
+      # one transaction -- confirmed by running `dbt build`, which failed every
+      # model with "Attempting to write to database ... in a transaction that
+      # has already modified database". This turns off dbt-duckdb's automatic
+      # transaction wrapping so each statement commits on its own instead.
+      disable_transactions: true

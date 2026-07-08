@@ -45,9 +45,16 @@ SCHEMA_FILES = [
 
 
 def ensure_schema(cloud_conn) -> None:
+    # 02_marts_schema.sql hardcodes "AUTHORIZATION pipeline" -- correct for the local
+    # stack's own role, but Neon/Supabase give you a different role name (Neon's is
+    # neondb_owner), so running that DDL verbatim fails with "role pipeline does not
+    # exist". Confirmed by actually running this against a real Neon database, not
+    # guessed. CURRENT_USER resolves to whatever role is actually connected, so this
+    # works against any target without needing to know its role name in advance.
     with cloud_conn.cursor() as cur:
         for path in SCHEMA_FILES:
-            cur.execute(path.read_text())
+            sql = path.read_text().replace("AUTHORIZATION pipeline", "AUTHORIZATION CURRENT_USER")
+            cur.execute(sql)
     cloud_conn.commit()
 
 

@@ -25,5 +25,9 @@ venv/
 # GCP service-account key for export_to_bigquery.py — never commit this.
 secrets/
 
+# Local Streamlit secrets (cloud DB credentials) — Streamlit Community Cloud gets its
+# own copy via its UI, this is only for testing the hosted code path locally.
+.streamlit/
+
 # Local Claude Code settings/session data — not part of the project
 .claude/

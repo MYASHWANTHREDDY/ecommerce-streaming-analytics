@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: regional_sales
+    description: Daily order volume, units, revenue, and profit by region and country.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: region
+        tests: [not_null]
+      - name: country
+        tests: [not_null]
+
+  - name: top_items
+    description: Daily order volume, units, revenue, and profit by item type.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: item_type
+        tests: [not_null]
+
+  - name: fulfillment_time
+    description: Daily fulfillment-time stats (avg/min/max days) by region and sales channel.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: region
+        tests: [not_null]
+      - name: sales_channel
+        tests: [not_null]
+
+  - name: profit_margin
+    description: Daily revenue, cost, profit, and margin % by item type and sales channel.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: item_type
+        tests: [not_null]
+      - name: sales_channel
+        tests: [not_null]
+
+  - name: channel_performance
+    description: Daily order volume, revenue, and average order value by sales channel and order priority.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: sales_channel
+        tests: [not_null]
+      - name: order_priority
+        tests: [not_null]

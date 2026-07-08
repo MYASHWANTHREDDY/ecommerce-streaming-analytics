@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: >
+      Raw event-level order data written by the Spark streaming job
+      (streaming/stream_orders.py), partitioned by event_date. Read directly
+      off disk via DuckDB's read_parquet — no separate ingestion/copy step,
+      same file glob the old hand-rolled marts SQL in sql/marts/ used.
+    tables:
+      - name: orders
+        meta:
+          external_location: "read_parquet('{{ env_var('BRONZE_PATH', '/data/bronze') }}/event_date=*/*.parquet', hive_partitioning = true)"

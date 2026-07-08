@@ -1,0 +1,29 @@
+name: 'ecommerce_marts'
+version: '1.0.0'
+config-version: 2
+
+profile: 'ecommerce_marts'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  ecommerce_marts:
+    marts:
+      +materialized: table
+      # Each model lands as an ordinary local DuckDB table first, then this
+      # post-hook pushes it into the real Postgres tables (attached as
+      # `analytics_db` in profiles.yml) with the exact same full-rebuild
+      # DELETE+INSERT semantics the old hand-rolled Python loop used in
+      # airflow/dags/batch_quality_marts.py. dbt-duckdb's docs show attaching
+      # Postgres but don't show a model materializing directly into the
+      # attachment, so this sidesteps that unverified path entirely — it's
+      # plain SQL through the same DuckDB connection, which is a supported,
+      # unsurprising mechanism. This was verified empirically (see CHANGELOG.md
+      # item 2) against a real attached Postgres before being treated as settled.
+      +post-hook:
+        - "DELETE FROM analytics_db.marts.{{ this.identifier }}"
+        - "INSERT INTO analytics_db.marts.{{ this.identifier }} SELECT * FROM {{ this }}"

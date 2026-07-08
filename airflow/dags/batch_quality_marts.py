@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pendulum
 from airflow.decorators import dag, task
 from airflow.exceptions import AirflowFailException
 
-MARTS_SQL_DIR = Path(os.environ.get("MARTS_SQL_DIR", "/opt/airflow/sql/marts"))
+# dbt-core/dbt-duckdb live in an isolated venv baked into the image
+# (airflow/Dockerfile), not the Airflow environment itself -- see that file
+# for why. Invoke via the full interpreter path, never rely on PATH.
+DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/airflow/dbt")
+DBT_BIN = os.environ.get("DBT_BIN", "/opt/dbt-venv/bin/dbt")
 
 
 @dag(
@@ -35,27 +38,21 @@ def batch_quality_marts():
 
     @task
     def build_gold_marts() -> None:
-        import duckdb
+        import subprocess
 
-        pg_host = os.environ["POSTGRES_HOST"]
-        pg_port = os.environ["POSTGRES_PORT"]
-        pg_db = os.environ["POSTGRES_DB"]
-        pg_user = os.environ["POSTGRES_USER"]
-        pg_password = os.environ["POSTGRES_PASSWORD"]
-
-        con = duckdb.connect()
-        con.execute("LOAD postgres;")
-        con.execute(
-            f"ATTACH 'dbname={pg_db} user={pg_user} password={pg_password} "
-            f"host={pg_host} port={pg_port}' AS analytics_db (TYPE postgres);"
+        # `dbt build` (not just `dbt run`) so the not_null/composite-uniqueness
+        # tests under dbt/models/marts/_marts.yml and dbt/tests/ run in the same
+        # task -- check=True means a failing model OR a failing test fails this
+        # task exactly like the old hand-rolled loop's exceptions did, so the
+        # existing retry policy (retries=1, 5 min) still applies unchanged.
+        # Each dbt model reads bronze directly via DuckDB (see
+        # dbt/models/marts/_sources.yml) and a post-hook (dbt/dbt_project.yml)
+        # pushes the result into Postgres with the same full-rebuild
+        # DELETE+INSERT semantics the old loop used.
+        subprocess.run(
+            [DBT_BIN, "build", "--project-dir", DBT_PROJECT_DIR, "--profiles-dir", DBT_PROJECT_DIR],
+            check=True,
         )
-
-        for sql_file in sorted(MARTS_SQL_DIR.glob("*.sql")):
-            table = sql_file.stem
-            select_sql = sql_file.read_text()
-            con.execute(f"CREATE OR REPLACE TEMP TABLE mart_result AS {select_sql}")
-            con.execute(f"DELETE FROM analytics_db.marts.{table};")
-            con.execute(f"INSERT INTO analytics_db.marts.{table} SELECT * FROM mart_result;")
 
     validate_bronze() >> build_gold_marts()
 

@@ -37,14 +37,17 @@ GCP_PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 GCP_GCS_BUCKET = os.environ["GCP_GCS_BUCKET"]
 GCP_BQ_DATASET = os.environ["GCP_BQ_DATASET"]
 
-# Same 5 gold marts dbt builds in dbt/models/marts/ (see batch_quality_marts.py).
-MART_TABLES = [
-    "regional_sales",
-    "top_items",
-    "fulfillment_time",
-    "profit_margin",
-    "channel_performance",
-]
+# Same 5 gold marts dbt builds in dbt/models/marts/ (see batch_quality_marts.py). Every
+# mart's non-event_date columns, listed explicitly rather than SELECT * -- see the
+# event_date::text cast below for why.
+MART_COLUMNS = {
+    "regional_sales": "region, country, order_count, total_units_sold, total_revenue, total_profit",
+    "top_items": "item_type, order_count, total_units_sold, total_revenue, total_profit",
+    "fulfillment_time": "region, sales_channel, avg_fulfillment_days, min_fulfillment_days, max_fulfillment_days, order_count",
+    "profit_margin": "item_type, sales_channel, total_revenue, total_cost, total_profit, profit_margin_pct",
+    "channel_performance": "sales_channel, order_priority, order_count, total_revenue, avg_order_value",
+}
+MART_TABLES = list(MART_COLUMNS)
 
 
 @dag(
@@ -76,10 +79,21 @@ def export_to_bigquery():
             # happens first and leaves plain `{}` untouched.
             gcs_object_template = f"marts_export/{table}/{{{{ ds }}}}/data-{{}}.parquet"
 
+            # event_date::text: PostgresToGCSOperator's own convert_type() already turns
+            # a Postgres DATE into an ISO string for the Parquet path, but its schema
+            # builder separately infers the target column as pyarrow's native date32()
+            # for a DATE-typed source column -- string value into a date32 column raises
+            # ArrowTypeError: object of type <class 'str'> cannot be converted to int.
+            # Confirmed by triggering the DAG for real and reading the traceback, not
+            # guessed -- this is a real mismatch between two independent code paths in
+            # apache-airflow-providers-google==22.2.1, not something specific to this
+            # DAG. Casting to text server-side makes the source column type TEXT, so the
+            # operator's own type map (OID 25 has no entry, falls back to its "STRING"
+            # default) agrees with what convert_type() already produces.
             export_to_gcs = PostgresToGCSOperator(
                 task_id="postgres_to_gcs",
                 postgres_conn_id="postgres_default",
-                sql=f"SELECT * FROM marts.{table};",
+                sql=f"SELECT event_date::text AS event_date, {MART_COLUMNS[table]} FROM marts.{table};",
                 bucket=GCP_GCS_BUCKET,
                 filename=gcs_object_template,
                 export_format="parquet",

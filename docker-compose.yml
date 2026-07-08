@@ -21,10 +21,16 @@ x-airflow-common: &airflow-common
     # POSTGRES_* vars above -- used by export_to_bigquery.py's PostgresToGCSOperator.
     AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://pipeline:pipeline@postgres:5432/analytics
     # GCP BigQuery export (export_to_bigquery.py). GOOGLE_APPLICATION_CREDENTIALS points
-    # at the key file mounted below -- Airflow's google_cloud_default connection falls
-    # back to Application Default Credentials from this env var when unset explicitly,
-    # so no separate GCP Airflow Connection needs registering. See README/CHANGELOG
-    # item 5 for the one-time `gcloud` setup that produces this key file.
+    # at the key file mounted below for actual auth (via Application Default
+    # Credentials). That alone isn't enough, though -- confirmed by actually running the
+    # DAG: PostgresToGCSOperator's GCS upload step still does get_connection("google_cloud_default")
+    # first, and Airflow raises AirflowNotFoundException if no Connection row with that
+    # id exists at all, ADC fallback or not. So the env-var connection below (same
+    # convention as AIRFLOW_CONN_POSTGRES_DEFAULT above) registers an empty one just to
+    # satisfy that lookup; GOOGLE_APPLICATION_CREDENTIALS is still what actually
+    # authenticates. See README/CHANGELOG item 5 for the one-time `gcloud` setup that
+    # produces the key file.
+    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: google-cloud-platform://
     GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
     GCP_GCS_BUCKET: ${GCP_GCS_BUCKET:-}
     GCP_BQ_DATASET: ${GCP_BQ_DATASET:-}

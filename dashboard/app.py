@@ -9,11 +9,30 @@ from dotenv import load_dotenv
 REPO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(REPO_ROOT / ".env")
 
-PG_HOST = os.environ.get("POSTGRES_HOST_EXTERNAL", "localhost")
-PG_PORT = os.environ.get("POSTGRES_PORT_EXTERNAL", "5433")
-PG_DB = os.environ.get("POSTGRES_DB", "analytics")
-PG_USER = os.environ.get("POSTGRES_USER", "pipeline")
-PG_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "pipeline")
+
+def _secret(key: str, default: str) -> str:
+    # Streamlit Community Cloud injects config via st.secrets (a TOML block set in
+    # their UI), not a mounted .env file -- try that first. Accessing st.secrets at all
+    # raises if no secrets.toml exists (e.g. every local run), so this has to be a
+    # try/except, not a .get() -- confirmed empirically, not assumed.
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.environ.get(key, default)
+
+
+PG_HOST = _secret("POSTGRES_HOST_EXTERNAL", "localhost")
+PG_PORT = _secret("POSTGRES_PORT_EXTERNAL", "5433")
+PG_DB = _secret("POSTGRES_DB", "analytics")
+PG_USER = _secret("POSTGRES_USER", "pipeline")
+PG_PASSWORD = _secret("POSTGRES_PASSWORD", "pipeline")
+
+# True only on the hosted deployment, where secrets.toml points at the synced cloud
+# Postgres instead of localhost -- gates the "static snapshot" caption below so the
+# local dev dashboard (against the real live pipeline) doesn't show it.
+IS_HOSTED_SNAPSHOT = PG_HOST != "localhost"
 
 LIVE_LOOKBACK_MINUTES = 30
 
@@ -36,6 +55,12 @@ def run_query(sql: str) -> pd.DataFrame:
 
 
 st.title("Streaming E-Commerce Analytics")
+if IS_HOSTED_SNAPSHOT:
+    st.caption(
+        "Static demo snapshot, synced periodically from the real pipeline — not a live "
+        "connection to Kafka/Spark (that needs Docker running locally, not something a "
+        "free static host can do)."
+    )
 tab_live, tab_analytics = st.tabs(["Live", "Analytics"])
 
 with tab_live:

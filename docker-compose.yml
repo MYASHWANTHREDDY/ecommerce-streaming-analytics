@@ -16,6 +16,19 @@ x-airflow-common: &airflow-common
     POSTGRES_USER: pipeline
     POSTGRES_PASSWORD: pipeline
     BRONZE_PATH: /data/bronze
+    # Airflow "env var connection" convention (AIRFLOW_CONN_<CONN_ID>, URI-encoded),
+    # registers postgres_default without a UI/CLI step. Same credentials as the
+    # POSTGRES_* vars above -- used by export_to_bigquery.py's PostgresToGCSOperator.
+    AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://pipeline:pipeline@postgres:5432/analytics
+    # GCP BigQuery export (export_to_bigquery.py). GOOGLE_APPLICATION_CREDENTIALS points
+    # at the key file mounted below -- Airflow's google_cloud_default connection falls
+    # back to Application Default Credentials from this env var when unset explicitly,
+    # so no separate GCP Airflow Connection needs registering. See README/CHANGELOG
+    # item 5 for the one-time `gcloud` setup that produces this key file.
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+    GCP_GCS_BUCKET: ${GCP_GCS_BUCKET:-}
+    GCP_BQ_DATASET: ${GCP_BQ_DATASET:-}
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/secrets/gcp-key.json
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/plugins:/opt/airflow/plugins
@@ -24,6 +37,10 @@ x-airflow-common: &airflow-common
     - ./dbt:/opt/airflow/dbt
     - ./great_expectations:/opt/airflow/great_expectations
     - ./bronze:/data/bronze:ro
+    # Mounts the whole (gitignored) directory rather than a single file, so `docker
+    # compose up` doesn't fail before the key file exists -- export_to_bigquery.py DAG
+    # runs will simply fail with a clear "no such file" until the key is placed here.
+    - ./secrets:/opt/airflow/secrets:ro
   depends_on:
     postgres:
       condition: service_healthy

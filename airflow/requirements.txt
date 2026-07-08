@@ -2,3 +2,10 @@ great-expectations==1.18.2
 duckdb>=1.1.0,<2.0.0
 pandas>=2.0,<3.0
 pyarrow>=14.0
+
+# export_to_bigquery.py DAG. Both confirmed against airflow>=2.11.0 (this project runs
+# apache/airflow:2.11.1) via each package's own METADATA -- not assumed. Postgres
+# provider is required too: PostgresToGCSOperator lives in the google package but
+# depends on apache-airflow-providers-postgres's PostgresHook at import/run time.
+apache-airflow-providers-google==22.2.1
+apache-airflow-providers-postgres==6.8.0

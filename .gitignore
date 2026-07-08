@@ -22,5 +22,8 @@ great_expectations/gx/
 .DS_Store
 venv/
 
+# GCP service-account key for export_to_bigquery.py — never commit this.
+secrets/
+
 # Local Claude Code settings/session data — not part of the project
 .claude/

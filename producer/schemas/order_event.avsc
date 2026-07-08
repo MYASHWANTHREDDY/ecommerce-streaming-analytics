@@ -1,0 +1,24 @@
+{
+  "type": "record",
+  "name": "OrderEvent",
+  "namespace": "com.ecommerce.pipeline",
+  "doc": "Mirrors the 16-field event produced by producer/events.py's row_to_event(). All fields are required (no union with \"null\", no default) so that a missing or null required field is structurally impossible to serialize -- see producer/events.py for the corruption variants this rules out and why. order_date/ship_date/event_time stay Avro \"string\" (ISO 8601), not a date/timestamp logical type, matching what row_to_event() already emits -- downstream (streaming/stream_orders.py) casts them to real DATE/TIMESTAMP columns after parsing, same as the old JSON path did via from_json's declared schema.",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "event_time", "type": "string"},
+    {"name": "order_id", "type": "long"},
+    {"name": "region", "type": "string"},
+    {"name": "country", "type": "string"},
+    {"name": "item_type", "type": "string"},
+    {"name": "sales_channel", "type": "string"},
+    {"name": "order_priority", "type": "string"},
+    {"name": "order_date", "type": "string"},
+    {"name": "ship_date", "type": "string"},
+    {"name": "units_sold", "type": "int"},
+    {"name": "unit_price", "type": "double"},
+    {"name": "unit_cost", "type": "double"},
+    {"name": "total_revenue", "type": "double"},
+    {"name": "total_cost", "type": "double"},
+    {"name": "total_profit", "type": "double"}
+  ]
+}

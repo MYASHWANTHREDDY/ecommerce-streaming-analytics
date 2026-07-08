@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -5,6 +6,17 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "producer"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# Must happen before any test module does `import events`: events.py builds its
+# AvroSerializer at import time from SCHEMA_REGISTRY_URL, and CI runs `pytest` with no
+# live Schema Registry (see .github/workflows/ci.yml). Starting the fake here, at
+# conftest module scope, guarantees it's up and the env var is set before pytest
+# collects tests/test_validation.py.
+import fake_schema_registry  # noqa: E402
+
+_SCHEMA_TEXT = (REPO_ROOT / "producer" / "schemas" / "order_event.avsc").read_text()
+os.environ["SCHEMA_REGISTRY_URL"] = fake_schema_registry.start(_SCHEMA_TEXT)
 
 
 @pytest.fixture

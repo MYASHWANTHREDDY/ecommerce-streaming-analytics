@@ -67,6 +67,25 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.1
+    container_name: schema-registry
+    depends_on:
+      kafka:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      # KRaft-only config: talks to the broker directly via
+      # SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS, not the legacy ZK-based
+      # SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL -- this stack's apache/kafka:3.8.0
+      # runs no ZooKeeper. 7.x picked over 8.0 for a longer track record against
+      # non-Confluent-packaged brokers. Verify: clean startup log with no ZK connection
+      # attempts, `curl localhost:8081/subjects` returns `[]`.
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+
   postgres:
     image: postgres:16
     container_name: postgres
@@ -100,12 +119,17 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+      schema-registry:
+        condition: service_started
     environment:
       # Container-internal Kafka address (distinct from the producer's host-oriented
       # KAFKA_BOOTSTRAP, since Spark runs inside the compose network, not on the host)
       KAFKA_BOOTSTRAP_INTERNAL: kafka:9092
       KAFKA_TOPIC_ORDERS: orders
       KAFKA_TOPIC_DLQ: orders_dlq
+      # Container-internal Schema Registry address, mirroring KAFKA_BOOTSTRAP_INTERNAL
+      # above -- used to fetch the current Avro schema via REST at job startup.
+      SCHEMA_REGISTRY_URL_INTERNAL: http://schema-registry:8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: analytics
@@ -128,7 +152,7 @@ services:
     restart: unless-stopped
     command: >
       /opt/spark/bin/spark-submit
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.2,org.postgresql:postgresql:42.7.12
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.2,org.postgresql:postgresql:42.7.12,org.apache.spark:spark-avro_2.13:4.1.2
       --conf spark.jars.ivy=/data/ivy2
       /opt/spark-app/stream_orders.py
 
@@ -178,6 +202,8 @@ services:
       # in-network address here, since this container runs inside the compose network.
       KAFKA_BOOTSTRAP: kafka:9092
       KAFKA_TOPIC_ORDERS: ${KAFKA_TOPIC_ORDERS:-orders}
+      # Same in-network override as KAFKA_BOOTSTRAP above.
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
       RATE: ${RATE:-100}
       CORRUPT_PCT: ${CORRUPT_PCT:-0.02}
       DATA_FILE: ${DATA_FILE:-data/sample_1k.csv}
@@ -188,6 +214,8 @@ services:
       - ./data:/app/data:ro
     depends_on:
       kafka:
+        condition: service_started
+      schema-registry:
         condition: service_started
 
 volumes:

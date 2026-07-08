@@ -44,8 +44,8 @@ def main():
         logger.error("No rows loaded from %s", data_path)
         sys.exit(1)
     logger.info(
-        "Loaded %d rows from %s | rate=%s/s corrupt_pct=%s loop=%s topic=%s",
-        len(rows), data_path, RATE, CORRUPT_PCT, LOOP, KAFKA_TOPIC_ORDERS,
+        "Loaded %d rows from %s | rate=%s/s corrupt_pct=%s loop=%s topic=%s schema_registry=%s",
+        len(rows), data_path, RATE, CORRUPT_PCT, LOOP, KAFKA_TOPIC_ORDERS, events.SCHEMA_REGISTRY_URL,
     )
 
     producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP})

@@ -1,2 +1,2 @@
-confluent-kafka==2.15.0
+confluent-kafka[avro,schemaregistry]==2.15.0
 python-dotenv==1.2.2

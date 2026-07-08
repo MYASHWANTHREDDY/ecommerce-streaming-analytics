@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # kafka_exporter's real metric surface (verified against its README): broker count,
+  # topic/partition offsets, and consumer group lag. It has NO broker request-rate
+  # metric -- that lives in Kafka's own JMX MBeans, which this project deliberately
+  # doesn't expose (see CHANGELOG.md item 4 for why: no JMX agent injected into the
+  # existing apache/kafka image). Message throughput (job "kafka" below) is the
+  # closest available substitute, computed from offset deltas rather than a
+  # broker-native rate metric.
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+
+  # Driver's built-in Prometheus servlet. Path confirmed against the official Spark
+  # 4.1.2 docs (spark.apache.org/docs/latest/monitoring.html): Driver / port 4040 /
+  # "/metrics/prometheus/". spark.ui.prometheus.enabled defaults to true as of Spark
+  # 4.0 (SPARK-46886) -- the explicit --conf in docker-compose.yml's spark command is
+  # for clarity, not strictly required on this Spark version.
+  - job_name: spark
+    metrics_path: /metrics/prometheus/
+    static_configs:
+      - targets: ["spark:4040"]

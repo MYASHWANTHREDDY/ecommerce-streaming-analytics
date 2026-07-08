@@ -154,6 +154,8 @@ services:
       /opt/spark/bin/spark-submit
       --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.2,org.postgresql:postgresql:42.7.12,org.apache.spark:spark-avro_2.13:4.1.2
       --conf spark.jars.ivy=/data/ivy2
+      --conf spark.ui.prometheus.enabled=true
+      --conf spark.sql.streaming.metricsEnabled=true
       /opt/spark-app/stream_orders.py
 
   airflow-init:
@@ -217,6 +219,43 @@ services:
         condition: service_started
       schema-registry:
         condition: service_started
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    container_name: kafka-exporter
+    depends_on:
+      kafka:
+        condition: service_started
+    command: ["--kafka.server=kafka:9092"]
+    ports:
+      - "9308:9308"
+
+  prometheus:
+    image: prom/prometheus:v3.11.1
+    container_name: prometheus
+    depends_on:
+      kafka-exporter:
+        condition: service_started
+      spark:
+        condition: service_started
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.0.2
+    container_name: grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:

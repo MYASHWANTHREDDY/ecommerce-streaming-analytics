@@ -1,0 +1,59 @@
+{
+  "title": "Pipeline Overview",
+  "uid": "pipeline-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Consumer Lag by Group",
+      "description": "kafka_consumergroup_lag_sum from kafka-exporter, summed per consumer group / topic. Watch this during `make chaos-test`'s spark-restart scenario -- lag should climb while spark is down and drain back to ~0 after it recovers.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(kafka_consumergroup_lag_sum) by (consumergroup, topic)",
+          "legendFormat": "{{consumergroup}} / {{topic}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Message Throughput (offset delta, msgs/sec)",
+      "description": "Substitute for \"broker request rate\": kafka_exporter (verified against its README) exposes broker count and topic/partition offsets/consumer-group lag, but no broker-native request-rate metric -- that lives in Kafka's own JMX MBeans, which this project deliberately doesn't expose (no JMX agent injected into the apache/kafka image). This approximates throughput from the rate of change of each partition's current offset instead.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(kafka_topic_partition_current_offset[1m])) by (topic)",
+          "legendFormat": "{{topic}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Spark Structured Streaming Latency (metric name unverified)",
+      "description": "spark.sql.streaming.metricsEnabled=true (set in docker-compose.yml's spark command) exposes a 'latency' Codahale metric under namespace spark.streaming, component instance=driver -- confirmed against the official Spark 4.1.2 monitoring docs. What is NOT confirmed (no live Spark cluster was available to check): the exact Prometheus metric name PrometheusServlet turns that into, since it depends on the runtime app ID and streaming query name. This panel uses a permissive regex match on job=spark plus '*latency*' in the metric name as a starting point -- open http://spark:4040/metrics/prometheus/ directly (or check Prometheus's own /targets and /graph pages) while the stack is running, find the real metric name, and tighten this query.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "{job=\"spark\", __name__=~\".*(?i)latency.*\"}",
+          "legendFormat": "{{__name__}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

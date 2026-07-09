@@ -128,6 +128,6 @@ with tab_analytics:
 
     mart_section("Regional Sales", "regional_sales", "region", "total_revenue")
     mart_section("Top Items", "top_items", "item_type", "total_revenue", top_n=10)
-    mart_section("Fulfillment Time", "fulfillment_time", "region", "avg_fulfillment_days", agg="mean")
+    mart_section("Fulfillment Time", "fulfillment_time", "region", "avg_fulfillment_seconds", agg="mean")
     mart_section("Profit Margin", "profit_margin", "item_type", "profit_margin_pct", agg="mean")
     mart_section("Channel Performance", "channel_performance", "sales_channel", "total_revenue")

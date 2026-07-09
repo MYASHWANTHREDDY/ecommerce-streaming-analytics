@@ -11,3 +11,11 @@ sources:
       - name: orders
         meta:
           external_location: "read_parquet('{{ env_var('BRONZE_PATH', '/data/bronze') }}/event_date=*/*.parquet', hive_partitioning = true)"
+      - name: fulfillment
+        description: >
+          order_placed/order_shipped stream-stream join output (see
+          streaming/stream_orders.py's Sink 4) -- one row per order with a real
+          fulfillment_seconds computed from the two events' actual Kafka
+          timestamps, not the dataset's static order_date/ship_date fields.
+        meta:
+          external_location: "read_parquet('{{ env_var('BRONZE_FULFILLMENT_PATH', '/data/bronze_fulfillment') }}/event_date=*/*.parquet', hive_partitioning = true)"

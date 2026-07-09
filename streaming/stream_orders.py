@@ -10,6 +10,7 @@ from pyspark.sql.functions import (
     col,
     count,
     current_timestamp,
+    expr,
     length,
     lit,
     struct,
@@ -23,6 +24,7 @@ from pyspark.sql.functions import (
 
 KAFKA_BOOTSTRAP = os.environ["KAFKA_BOOTSTRAP_INTERNAL"]
 TOPIC_ORDERS = os.environ["KAFKA_TOPIC_ORDERS"]
+TOPIC_ORDER_SHIPPED = os.environ["KAFKA_TOPIC_ORDER_SHIPPED"]
 TOPIC_DLQ = os.environ["KAFKA_TOPIC_DLQ"]
 SCHEMA_REGISTRY_URL = os.environ["SCHEMA_REGISTRY_URL_INTERNAL"]
 POSTGRES_HOST = os.environ["POSTGRES_HOST"]
@@ -31,6 +33,7 @@ POSTGRES_DB = os.environ["POSTGRES_DB"]
 POSTGRES_USER = os.environ["POSTGRES_USER"]
 POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
 BRONZE_PATH = os.environ.get("BRONZE_PATH", "/data/bronze")
+BRONZE_FULFILLMENT_PATH = os.environ.get("BRONZE_FULFILLMENT_PATH", "/data/bronze_fulfillment")
 CHECKPOINT_ROOT = os.environ.get("CHECKPOINT_ROOT", "/data/checkpoints")
 
 UPSERT_SQL = """
@@ -93,6 +96,7 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
 
     avro_schema_str, schema_id = fetch_latest_avro_schema(SCHEMA_REGISTRY_URL, TOPIC_ORDERS)
+    shipped_avro_schema_str, shipped_schema_id = fetch_latest_avro_schema(SCHEMA_REGISTRY_URL, TOPIC_ORDER_SHIPPED)
 
     # Confluent wire format: [magic byte 0x00][4-byte big-endian schema ID][avro payload].
     # Vanilla OSS Spark has no built-in Confluent-registry awareness, so this header is
@@ -244,6 +248,85 @@ def main():
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
         .option("topic", TOPIC_DLQ)
         .option("checkpointLocation", f"{CHECKPOINT_ROOT}/dlq")
+        .outputMode("append")
+        .start()
+    )
+
+    # --- Sink 4: order_shipped stream-stream join -> real fulfillment time ---
+    # The dataset's order_date/ship_date are static values baked into the CSV, not
+    # anything a streaming system actually observed -- fulfillment_time.sql used to
+    # compute "fulfillment days" straight from those two columns, which isn't really a
+    # streaming computation at all. This joins the order_placed stream (already-decoded
+    # `valid_df`) against a second, genuinely separate order_shipped stream on the
+    # placed event's own event_id (not order_id -- see order_shipped_event.avsc's doc
+    # field for why order_id alone breaks under LOOP=true's repeating replay), and
+    # computes fulfillment_seconds from the two real Kafka message timestamps.
+    shipped_raw_df = (
+        spark.readStream.format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
+        .option("subscribe", TOPIC_ORDER_SHIPPED)
+        .option("startingOffsets", "earliest")
+        .option("failOnDataLoss", "false")
+        .load()
+    )
+
+    shipped_expected_header = bytes([0]) + shipped_schema_id.to_bytes(4, "big")
+    shipped_header_valid = substring(col("value"), 1, 5) == lit(shipped_expected_header)
+    shipped_avro_payload = substring(col("value"), 6, length(col("value")) - 5)
+
+    shipped_df = (
+        shipped_raw_df.select(
+            shipped_header_valid.alias("header_valid"),
+            shipped_avro_payload.alias("avro_payload"),
+        )
+        .withColumn("parsed", from_avro(col("avro_payload"), shipped_avro_schema_str))
+        # No DLQ path for this stream -- it isn't user-facing and the producer never
+        # corrupts it, so a bad header/decode here just means "can't be joined,"
+        # silently dropped rather than routed anywhere. Matches the isNull() defensive
+        # pattern the primary stream already uses, not a new idea.
+        .filter(col("header_valid") & col("parsed").isNotNull())
+        .select("parsed.*")
+        .withColumn("shipped_ts", col("shipped_at").cast("timestamp"))
+        .withWatermark("shipped_ts", "2 minutes")
+    )
+
+    placed_for_join_df = valid_df.withWatermark("event_ts", "2 minutes")
+
+    # A stream-stream join only emits a row once the watermark has passed the join
+    # condition's upper time bound -- so this bound directly controls how long results
+    # take to appear, not just how much join state Spark retains. 2 minutes is generous
+    # relative to SHIP_DELAY_MAX_SECONDS (default 30s) without being the 10-minute
+    # window an earlier draft of this used, which -- confirmed by actually running it --
+    # made the join produce zero output for the entire duration of a normal test/demo
+    # session. event_id (not order_id) is what actually prevents cross-cycle mismatches
+    # under LOOP=true, so this bound only needs to comfortably cover the real delay, not
+    # be tight for correctness.
+    fulfillment_df = (
+        placed_for_join_df.alias("placed")
+        .join(
+            shipped_df.alias("shipped"),
+            expr(
+                "placed.event_id = shipped.placed_event_id AND "
+                "shipped.shipped_ts >= placed.event_ts AND "
+                "shipped.shipped_ts <= placed.event_ts + interval 2 minutes"
+            ),
+            "inner",
+        )
+        .select(
+            col("placed.event_date").alias("event_date"),
+            col("placed.region").alias("region"),
+            col("placed.sales_channel").alias("sales_channel"),
+            (
+                col("shipped.shipped_ts").cast("long") - col("placed.event_ts").cast("long")
+            ).alias("fulfillment_seconds"),
+        )
+    )
+
+    fulfillment_query = (
+        fulfillment_df.writeStream.format("parquet")
+        .option("path", BRONZE_FULFILLMENT_PATH)
+        .option("checkpointLocation", f"{CHECKPOINT_ROOT}/bronze_fulfillment")
+        .partitionBy("event_date")
         .outputMode("append")
         .start()
     )

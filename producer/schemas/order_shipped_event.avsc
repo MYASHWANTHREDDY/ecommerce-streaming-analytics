@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "OrderShippedEvent",
+  "namespace": "com.ecommerce.pipeline",
+  "doc": "Emitted on a separate topic (order_shipped) some real time after the matching OrderEvent on 'orders', to let fulfillment time be computed from actual streaming event timestamps instead of the dataset's static order_date/ship_date fields. The delay is synthesized (SHIP_DELAY_MIN/MAX_SECONDS in producer/producer.py) since the source CSV has no real-time shipping signal -- see CHANGELOG.md for the full design. placed_event_id, not order_id, is the actual join key streaming/stream_orders.py uses: with LOOP=true the producer replays the same ~1000 order_ids forever, so order_id alone would let a stream-stream join match an order_placed from one replay cycle with an order_shipped from a different one. placed_event_id is the fresh UUID the originating OrderEvent generated for that one specific send, so it's unique per real event instance even across cycles. order_id is kept only for display/grouping in the joined output, never for correlation. shipped_at stays a string (ISO 8601), same reasoning as OrderEvent's own timestamp fields.",
+  "fields": [
+    {"name": "event_id", "type": "string"},
+    {"name": "placed_event_id", "type": "string"},
+    {"name": "order_id", "type": "long"},
+    {"name": "shipped_at", "type": "string"}
+  ]
+}

@@ -25,14 +25,18 @@ CREATE TABLE IF NOT EXISTS marts.top_items (
     PRIMARY KEY (event_date, item_type)
 );
 
+-- Real streaming-derived fulfillment time (seconds, not days) -- see
+-- dbt/models/marts/fulfillment_time.sql for why this changed from the dataset's static
+-- order_date/ship_date fields to streaming/stream_orders.py's order_placed/
+-- order_shipped stream-stream join output.
 CREATE TABLE IF NOT EXISTS marts.fulfillment_time (
-    event_date             DATE NOT NULL,
-    region                  TEXT NOT NULL,
-    sales_channel           TEXT NOT NULL,
-    avg_fulfillment_days    DOUBLE PRECISION,
-    min_fulfillment_days    INTEGER,
-    max_fulfillment_days    INTEGER,
-    order_count             BIGINT,
+    event_date                 DATE NOT NULL,
+    region                      TEXT NOT NULL,
+    sales_channel                TEXT NOT NULL,
+    avg_fulfillment_seconds      DOUBLE PRECISION,
+    min_fulfillment_seconds      BIGINT,
+    max_fulfillment_seconds      BIGINT,
+    order_count                  BIGINT,
     PRIMARY KEY (event_date, region, sales_channel)
 );
 

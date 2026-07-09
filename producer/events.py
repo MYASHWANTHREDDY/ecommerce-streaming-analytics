@@ -43,8 +43,10 @@ CORRUPTION_VARIANTS = [
 # 6 -> 3).
 
 KAFKA_TOPIC_ORDERS = os.environ.get("KAFKA_TOPIC_ORDERS", "orders")
+KAFKA_TOPIC_ORDER_SHIPPED = os.environ.get("KAFKA_TOPIC_ORDER_SHIPPED", "order_shipped")
 SCHEMA_REGISTRY_URL = os.environ.get("SCHEMA_REGISTRY_URL", "http://localhost:8081")
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "order_event.avsc"
+_SHIPPED_SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "order_shipped_event.avsc"
 
 # Constructing these doesn't touch the network (confirmed empirically -- SchemaRegistryClient
 # and AvroSerializer.__init__ just parse the local schema and store config; the registry
@@ -55,6 +57,13 @@ _SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "order_event.avsc"
 _registry_client = SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
 _avro_serializer = AvroSerializer(_registry_client, _SCHEMA_PATH.read_text())
 _serialization_ctx = SerializationContext(KAFKA_TOPIC_ORDERS, MessageField.VALUE)
+
+# Separate topic, separate schema/subject, separate serializer -- order_shipped is a
+# genuinely independent event stream, not a variant of OrderEvent. See
+# order_shipped_event.avsc's doc field for why it exists (real streaming-derived
+# fulfillment time instead of the dataset's static order_date/ship_date).
+_shipped_avro_serializer = AvroSerializer(_registry_client, _SHIPPED_SCHEMA_PATH.read_text())
+_shipped_serialization_ctx = SerializationContext(KAFKA_TOPIC_ORDER_SHIPPED, MessageField.VALUE)
 
 
 def _to_iso_date(mdy: str) -> str:
@@ -90,6 +99,23 @@ def serialize_event(event: dict) -> bytes:
     """Avro-encode + prepend the Confluent wire-format header (magic byte + schema ID).
     The one place this module talks to Schema Registry."""
     return _avro_serializer(event, _serialization_ctx)
+
+
+def build_shipped_event(order_id: int, placed_event_id: str) -> dict:
+    """placed_event_id is the join key streaming/stream_orders.py actually uses -- see
+    order_shipped_event.avsc's doc field for why order_id alone isn't safe under
+    LOOP=true's repeating replay. shipped_at is real wall-clock time at send, same as
+    OrderEvent's event_time."""
+    return {
+        "event_id": str(uuid.uuid4()),
+        "placed_event_id": placed_event_id,
+        "order_id": order_id,
+        "shipped_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def serialize_shipped_event(event: dict) -> bytes:
+    return _shipped_avro_serializer(event, _shipped_serialization_ctx)
 
 
 def _negative_numeric(event: dict) -> dict:

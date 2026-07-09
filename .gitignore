@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 pgdata/
 bronze/
+bronze_fulfillment/
 checkpoints/
 ivy2-cache/
 airflow/logs/

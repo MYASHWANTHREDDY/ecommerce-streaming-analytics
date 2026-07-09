@@ -9,6 +9,7 @@ __pycache__/
 # Generated pipeline data/state -- never needed inside a build context.
 pgdata/
 bronze/
+bronze_fulfillment/
 checkpoints/
 ivy2-cache/
 # Contains a Unix-style "latest" symlink Airflow creates that Docker's build

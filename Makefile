@@ -28,7 +28,7 @@ clean:
 	docker compose down -v
 	# pgdata is a named Docker volume (removed above by `down -v`, not a host folder);
 	# these are the actual gitignored host-side directories that accumulate over time.
-	rm -rf bronze/ checkpoints/ ivy2-cache/ airflow/logs/ great_expectations/gx/
+	rm -rf bronze/ bronze_fulfillment/ checkpoints/ ivy2-cache/ airflow/logs/ great_expectations/gx/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete
 

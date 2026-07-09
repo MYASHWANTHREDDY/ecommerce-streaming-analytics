@@ -16,6 +16,7 @@ x-airflow-common: &airflow-common
     POSTGRES_USER: pipeline
     POSTGRES_PASSWORD: pipeline
     BRONZE_PATH: /data/bronze
+    BRONZE_FULFILLMENT_PATH: /data/bronze_fulfillment
     # Airflow "env var connection" convention (AIRFLOW_CONN_<CONN_ID>, URI-encoded),
     # registers postgres_default without a UI/CLI step. Same credentials as the
     # POSTGRES_* vars above -- used by export_to_bigquery.py's PostgresToGCSOperator.
@@ -43,6 +44,7 @@ x-airflow-common: &airflow-common
     - ./dbt:/opt/airflow/dbt
     - ./great_expectations:/opt/airflow/great_expectations
     - ./bronze:/data/bronze:ro
+    - ./bronze_fulfillment:/data/bronze_fulfillment:ro
     # Mounts the whole (gitignored) directory rather than a single file, so `docker
     # compose up` doesn't fail before the key file exists -- export_to_bigquery.py DAG
     # runs will simply fail with a clear "no such file" until the key is placed here.
@@ -52,49 +54,88 @@ x-airflow-common: &airflow-common
       condition: service_healthy
 
 services:
+  # 3-broker KRaft cluster, each node acting as both broker and controller. Kept the
+  # first node's service/container name as "kafka" (not "kafka-1") specifically so every
+  # other service's existing KAFKA_BOOTSTRAP_INTERNAL=kafka:9092 keeps working unchanged
+  # -- Kafka clients discover the other two brokers dynamically from whichever broker
+  # they bootstrap against, so nothing downstream needs to know kafka-2/kafka-3 exist.
   kafka:
     image: apache/kafka:3.8.0
     container_name: kafka
     ports:
       - "29092:29092"        # Port for host tools (producer on your laptop)
     environment:
-      # KRaft mode: single node acts as both broker and controller (no ZooKeeper)
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-
-      # Three listener protocols:
-      # - INTERNAL: for inter-broker and inter-container traffic (kafka:9092)
-      # - CONTROLLER: for KRaft controller quorum (kafka:9093)
-      # - EXTERNAL: for host tools like our producer (localhost:29092)
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
-
-      # Advertised listeners tell clients where to reach the broker
-      # Container-to-container uses INTERNAL hostname (kafka:9092)
-      # Host machine tools use EXTERNAL hostname (localhost:29092)
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
-
-      # Map each protocol name to its security protocol (all PLAINTEXT for local dev)
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
-
-      # Which listener the controller listens on
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
-      # Which listener brokers use to communicate with each other
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # All 3 nodes vote in the same KRaft controller quorum -- identical value on all
+      # 3 broker services, each just knows its own node ID via KAFKA_NODE_ID above.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093,2@kafka-2:9093,3@kafka-3:9093
+      # 3 brokers means real replication is possible now -- topics created after this
+      # (including auto-created ones) default to RF 3, min ISR 2 is the standard
+      # "tolerate one broker down without blocking writes" setting for RF 3.
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
 
-      # KRaft quorum voters: this broker votes (node 1 @ kafka:9093)
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+  kafka-2:
+    image: apache/kafka:3.8.0
+    container_name: kafka-2
+    ports:
+      - "29093:29093"
+    environment:
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-2:9092,EXTERNAL://localhost:29093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093,2@kafka-2:9093,3@kafka-3:9093
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
 
-      # Single-node cluster settings (in production, you'd scale these up)
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+  kafka-3:
+    image: apache/kafka:3.8.0
+    container_name: kafka-3
+    ports:
+      - "29094:29094"
+    environment:
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-3:9092,EXTERNAL://localhost:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093,2@kafka-2:9093,3@kafka-3:9093
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.7.1
     container_name: schema-registry
+    # All 3 brokers, not just "kafka" -- with a 3-node KRaft quorum, "kafka" alone can't
+    # actually serve requests until enough of the quorum (2 of 3) is up, so waiting on
+    # just its container process is a weaker guarantee here than it was single-node.
     depends_on:
       kafka:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
         condition: service_started
     ports:
       - "8081:8081"
@@ -140,6 +181,10 @@ services:
     depends_on:
       kafka:
         condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
+        condition: service_started
       postgres:
         condition: service_healthy
       schema-registry:
@@ -149,6 +194,7 @@ services:
       # KAFKA_BOOTSTRAP, since Spark runs inside the compose network, not on the host)
       KAFKA_BOOTSTRAP_INTERNAL: kafka:9092
       KAFKA_TOPIC_ORDERS: orders
+      KAFKA_TOPIC_ORDER_SHIPPED: order_shipped
       KAFKA_TOPIC_DLQ: orders_dlq
       # Container-internal Schema Registry address, mirroring KAFKA_BOOTSTRAP_INTERNAL
       # above -- used to fetch the current Avro schema via REST at job startup.
@@ -159,6 +205,7 @@ services:
       POSTGRES_USER: pipeline
       POSTGRES_PASSWORD: pipeline
       BRONZE_PATH: /data/bronze
+      BRONZE_FULFILLMENT_PATH: /data/bronze_fulfillment
       CHECKPOINT_ROOT: /data/checkpoints
     volumes:
       # Bind-mount shadows the image's COPY'd code for fast dev iteration (edit + restart,
@@ -167,6 +214,7 @@ services:
       # Host-visible so bronze/checkpoints survive container restarts (required for the
       # restart/no-duplicates test) and match the Makefile's `clean` target.
       - ./bronze:/data/bronze
+      - ./bronze_fulfillment:/data/bronze_fulfillment
       - ./checkpoints:/data/checkpoints
       # Persists --packages jar resolution across restarts (avoids re-fetching from Maven
       # Central every time the container restarts). Bind-mounted (not a named volume) so it's
@@ -227,18 +275,25 @@ services:
       # in-network address here, since this container runs inside the compose network.
       KAFKA_BOOTSTRAP: kafka:9092
       KAFKA_TOPIC_ORDERS: ${KAFKA_TOPIC_ORDERS:-orders}
+      KAFKA_TOPIC_ORDER_SHIPPED: ${KAFKA_TOPIC_ORDER_SHIPPED:-order_shipped}
       # Same in-network override as KAFKA_BOOTSTRAP above.
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
       RATE: ${RATE:-100}
       CORRUPT_PCT: ${CORRUPT_PCT:-0.02}
       DATA_FILE: ${DATA_FILE:-data/sample_1k.csv}
       LOOP: ${LOOP:-true}
+      SHIP_DELAY_MIN_SECONDS: ${SHIP_DELAY_MIN_SECONDS:-5}
+      SHIP_DELAY_MAX_SECONDS: ${SHIP_DELAY_MAX_SECONDS:-30}
     volumes:
       # Bind-mount shadows the image's COPY'd data/ so the full dataset.csv can be swapped
       # in without a rebuild, same pattern as spark's bind-mounts above.
       - ./data:/app/data:ro
     depends_on:
       kafka:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
         condition: service_started
       schema-registry:
         condition: service_started
@@ -248,6 +303,10 @@ services:
     container_name: kafka-exporter
     depends_on:
       kafka:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
         condition: service_started
     command: ["--kafka.server=kafka:9092"]
     ports:
@@ -262,6 +321,32 @@ services:
     # by the second attempt kafka is up. Confirmed this is the actual failure
     # mode, not guessed: kafka-exporter's own log shows `connection refused`
     # against kafka:9092, not an auth/config error.
+    restart: on-failure
+
+  # Gives kafka-exporter's consumer-lag metric something real to report. Spark's Kafka
+  # source never joins an actual consumer group (see stream_orders.py and CHANGELOG.md
+  # item 4), so without this there's no lag signal at all. Read-only mount, and it never
+  # subscribes to or consumes from `orders` -- it only reads the offset Spark's bronze
+  # sink already committed to its own checkpoint and republishes that value as a
+  # consumer-group commit, purely for monitoring. Deleting this service changes nothing
+  # about the actual pipeline's behavior.
+  lag-reporter:
+    build:
+      context: .
+      dockerfile: monitoring/lag_reporter/Dockerfile
+    container_name: lag-reporter
+    depends_on:
+      kafka:
+        condition: service_started
+      kafka-2:
+        condition: service_started
+      kafka-3:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_INTERNAL: kafka:9092
+      KAFKA_TOPIC_ORDERS: orders
+    volumes:
+      - ./checkpoints:/data/checkpoints:ro
     restart: on-failure
 
   prometheus:

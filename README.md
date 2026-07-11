@@ -23,8 +23,6 @@ Visit `http://localhost:8501` to watch order metrics update in real time.
 
 ![Live dashboard demo](docs/dashboard-demo.gif)
 
-*(GIF not recorded yet — see [docs/dashboard-demo-instructions.md](docs/dashboard-demo-instructions.md).)*
-
 ## Architecture
 
 ![Architecture diagram](docs/architecture.svg)

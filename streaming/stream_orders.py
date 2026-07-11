@@ -92,7 +92,20 @@ def _write_partition(rows):
 
 
 def main():
-    spark = SparkSession.builder.appName("stream_orders").getOrCreate()
+    spark = (
+        SparkSession.builder.appName("stream_orders")
+        # Spark's default of 200 shuffle partitions is a cluster-scale number -- on a
+        # single laptop core count, running 4 concurrent stateful queries (windowed agg
+        # + the order_placed/order_shipped join both shuffle), it means hundreds of tiny
+        # tasks and state-store partitions competing for the same handful of cores. Found
+        # this by actually watching a local demo session grind to a halt after running
+        # for a while -- ProcessingTimeExecutor logs showed batches taking minutes
+        # against a 10s trigger, and CPU was pegged the whole time without the query ever
+        # catching up. 8 is enough parallelism for this demo's actual data volume without
+        # the per-partition overhead swamping it.
+        .config("spark.sql.shuffle.partitions", "8")
+        .getOrCreate()
+    )
     spark.sparkContext.setLogLevel("WARN")
 
     avro_schema_str, schema_id = fetch_latest_avro_schema(SCHEMA_REGISTRY_URL, TOPIC_ORDERS)

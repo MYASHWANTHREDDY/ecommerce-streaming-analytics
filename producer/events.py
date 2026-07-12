@@ -35,12 +35,10 @@ CORRUPTION_VARIANTS = [
 # possible to construct: order_event.avsc declares all 16 fields required (no union with
 # "null", no default), so AvroSerializer.__call__ raises before any such dict reaches
 # Kafka -- see test_serializer_rejects_missing_field / _null_field / _type_mismatch in
-# tests/test_validation.py, which assert this directly against the real serializer rather
-# than just asserting it in prose here. That's the entire point of a schema registry, and
-# losing these 3 variants is a deliberate, understood tradeoff (see CHANGELOG.md item 3),
-# not a silent coverage gap -- extreme_outlier_numeric and revenue_quantity_mismatch below
-# were added specifically so total corruption-path coverage doesn't shrink (6 -> 5, not
-# 6 -> 3).
+# tests/test_validation.py, which assert this directly against the real serializer. Losing
+# those 3 variants is a deliberate tradeoff, not a silent coverage gap -- that's the whole
+# point of a schema registry -- so extreme_outlier_numeric and revenue_quantity_mismatch
+# below were added to keep total corruption-path coverage from shrinking (6 -> 5, not 6 -> 3).
 
 KAFKA_TOPIC_ORDERS = os.environ.get("KAFKA_TOPIC_ORDERS", "orders")
 KAFKA_TOPIC_ORDER_SHIPPED = os.environ.get("KAFKA_TOPIC_ORDER_SHIPPED", "order_shipped")
@@ -58,10 +56,10 @@ _registry_client = SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
 _avro_serializer = AvroSerializer(_registry_client, _SCHEMA_PATH.read_text())
 _serialization_ctx = SerializationContext(KAFKA_TOPIC_ORDERS, MessageField.VALUE)
 
-# Separate topic, separate schema/subject, separate serializer -- order_shipped is a
-# genuinely independent event stream, not a variant of OrderEvent. See
-# order_shipped_event.avsc's doc field for why it exists (real streaming-derived
-# fulfillment time instead of the dataset's static order_date/ship_date).
+# Separate topic, separate schema/subject, separate serializer -- order_shipped is its
+# own independent event stream, not a variant of OrderEvent. See order_shipped_event.avsc's
+# doc field for why it exists (streaming-derived fulfillment time instead of the dataset's
+# static order_date/ship_date).
 _shipped_avro_serializer = AvroSerializer(_registry_client, _SHIPPED_SCHEMA_PATH.read_text())
 _shipped_serialization_ctx = SerializationContext(KAFKA_TOPIC_ORDER_SHIPPED, MessageField.VALUE)
 

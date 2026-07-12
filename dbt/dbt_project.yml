@@ -22,8 +22,8 @@ models:
       # Postgres but don't show a model materializing directly into the
       # attachment, so this sidesteps that unverified path entirely — it's
       # plain SQL through the same DuckDB connection, which is a supported,
-      # unsurprising mechanism. This was verified empirically (see CHANGELOG.md
-      # item 2) against a real attached Postgres before being treated as settled.
+      # unsurprising mechanism. Verified against a real attached Postgres
+      # before being treated as settled.
       +post-hook:
         - "DELETE FROM analytics_db.marts.{{ this.identifier }}"
         - "INSERT INTO analytics_db.marts.{{ this.identifier }} SELECT * FROM {{ this }}"

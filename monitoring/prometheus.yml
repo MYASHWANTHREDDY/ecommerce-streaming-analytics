@@ -5,8 +5,8 @@ scrape_configs:
   # kafka_exporter's real metric surface (verified against its README): broker count,
   # topic/partition offsets, and consumer group lag. It has NO broker request-rate
   # metric -- that lives in Kafka's own JMX MBeans, which this project deliberately
-  # doesn't expose (see CHANGELOG.md item 4 for why: no JMX agent injected into the
-  # existing apache/kafka image). Message throughput (job "kafka" below) is the
+  # doesn't expose (no JMX agent injected into the existing apache/kafka image).
+  # Message throughput (job "kafka" below) is the
   # closest available substitute, computed from offset deltas rather than a
   # broker-native rate metric.
   - job_name: kafka

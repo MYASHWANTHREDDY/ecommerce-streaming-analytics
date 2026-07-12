@@ -29,7 +29,7 @@ x-airflow-common: &airflow-common
     # id exists at all, ADC fallback or not. So the env-var connection below (same
     # convention as AIRFLOW_CONN_POSTGRES_DEFAULT above) registers an empty one just to
     # satisfy that lookup; GOOGLE_APPLICATION_CREDENTIALS is still what actually
-    # authenticates. See README/CHANGELOG item 5 for the one-time `gcloud` setup that
+    # authenticates. See docs/gcp-setup.md for the one-time `gcloud` setup that
     # produces the key file.
     AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: google-cloud-platform://
     GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
@@ -324,8 +324,8 @@ services:
     restart: on-failure
 
   # Gives kafka-exporter's consumer-lag metric something real to report. Spark's Kafka
-  # source never joins an actual consumer group (see stream_orders.py and CHANGELOG.md
-  # item 4), so without this there's no lag signal at all. Read-only mount, and it never
+  # source never joins an actual consumer group (see monitoring/lag_reporter/lag_reporter.py),
+  # so without this there's no lag signal at all. Read-only mount, and it never
   # subscribes to or consumes from `orders` -- it only reads the offset Spark's bronze
   # sink already committed to its own checkpoint and republishes that value as a
   # consumer-group commit, purely for monitoring. Deleting this service changes nothing

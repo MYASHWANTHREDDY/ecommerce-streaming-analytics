@@ -265,15 +265,15 @@ def main():
         .start()
     )
 
-    # --- Sink 4: order_shipped stream-stream join -> real fulfillment time ---
+    # --- Sink 4: order_shipped stream-stream join -> fulfillment time ---
     # The dataset's order_date/ship_date are static values baked into the CSV, not
-    # anything a streaming system actually observed -- fulfillment_time.sql used to
-    # compute "fulfillment days" straight from those two columns, which isn't really a
-    # streaming computation at all. This joins the order_placed stream (already-decoded
-    # `valid_df`) against a second, genuinely separate order_shipped stream on the
-    # placed event's own event_id (not order_id -- see order_shipped_event.avsc's doc
-    # field for why order_id alone breaks under LOOP=true's repeating replay), and
-    # computes fulfillment_seconds from the two real Kafka message timestamps.
+    # anything a streaming system observed -- fulfillment_time.sql used to compute
+    # "fulfillment days" straight from those two columns, which isn't a streaming
+    # computation at all. This joins the order_placed stream (already-decoded `valid_df`)
+    # against a second, separate order_shipped stream on the placed event's own event_id
+    # (not order_id -- see order_shipped_event.avsc's doc field for why order_id alone
+    # breaks under LOOP=true's repeating replay), and computes fulfillment_seconds from
+    # the two Kafka message timestamps.
     shipped_raw_df = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)

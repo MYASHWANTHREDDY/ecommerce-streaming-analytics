@@ -4,8 +4,8 @@ genuine consumer-lag signal to report.
 
 Why this exists: Structured Streaming's Kafka source never joins a real consumer group --
 it tracks progress entirely through its own checkpoint, so there's nothing for
-kafka-exporter's lag metric to compute against by default (see CHANGELOG.md item 4).
-Setting kafka.group.id directly on the production stream would fix that, but Spark's own
+kafka-exporter's lag metric to compute against by default. Setting kafka.group.id
+directly on the production stream would fix that, but Spark's own
 docs call that "use with extreme caution" since it can interfere with the checkpoint's
 own correctness guarantees. This script is the safer alternative: it never subscribes to
 or consumes a single message from the orders topic. It only reads the offset Spark's

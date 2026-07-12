@@ -32,3 +32,6 @@ secrets/
 
 # Local Claude Code settings/session data — not part of the project
 .claude/
+
+# Working notes, not meant for the public repo
+CHANGELOG.md

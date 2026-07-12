@@ -50,7 +50,7 @@ Visit `http://localhost:8501` to watch order metrics update in real time.
 
 </details>
 
-**Speed layer:** Spark reads Avro-encoded events from Kafka continuously, computes 1-minute windowed metrics (order count, revenue by region/channel), and writes them into `live_order_metrics` in Postgres. A second, genuinely separate `order_shipped` stream arrives some real seconds after each order, and Spark joins the two on the placed event's own `event_id` to compute real fulfillment time from actual message timestamps.
+**Speed layer:** Spark reads Avro-encoded events from Kafka continuously, computes 1-minute windowed metrics (order count, revenue by region/channel), and writes them into `live_order_metrics` in Postgres. A second `order_shipped` stream arrives on its own topic a few seconds after each order, and Spark joins the two on the placed event's `event_id` to compute fulfillment time from the actual message timestamps.
 
 **Batch layer:** An hourly Airflow DAG validates the newest bronze partition with Great Expectations, then rebuilds the gold marts with dbt (5 models running on DuckDB against the full bronze history). A second hourly DAG exports those same marts to GCS and loads them into BigQuery.
 
@@ -60,15 +60,15 @@ Visit `http://localhost:8501` to watch order metrics update in real time.
 
 ## Why these tools
 
-- **Kafka, 3 brokers in KRaft mode** as the ingestion buffer — decouples the producer's pace from whatever's consuming it, gives durable replay, and makes a dead-letter pattern natural (bad records get their own topic instead of being dropped). Replication factor 3 / min ISR 2 means the cluster tolerates a broker dying without losing data or blocking writes — checked by actually killing a broker mid-stream, not just setting the config and assuming it works.
+- **Kafka, 3 brokers in KRaft mode** as the ingestion buffer — decouples the producer's pace from whatever's consuming it, gives durable replay, and makes a dead-letter pattern natural (bad records get their own topic instead of being dropped). Replication factor 3 / min ISR 2 means the cluster tolerates a broker dying without losing data or blocking writes — tested by actually killing a broker mid-stream and watching writes keep going through.
 - **Avro + Schema Registry, not raw JSON** — the primary `orders` topic carries a registered schema, so a producer sending a malformed record (missing a required field, wrong type) gets rejected client-side before it ever reaches Kafka, instead of quietly polluting the topic. That does mean a schema can't catch everything — negative prices, absurd values, or a ship date before the order date are all schema-valid but still wrong, so Spark still runs its own semantic checks on top.
 - **Spark Structured Streaming** for the speed layer — native Kafka source/sink, and checkpoint-based recovery means killing the Spark container and bringing it back resumes from the last committed offset instead of reprocessing or losing data.
 - **Airflow 2.x with `LocalExecutor`, not Airflow 3** — Airflow 3's `LocalExecutor` needs an api-server, scheduler, dag-processor, and triggerer all running at once, which felt like a lot of extra containers for what's really just two hourly DAGs.
 - **dbt on DuckDB for the gold marts**, not raw DuckDB scripts — the batch layer just needs SQL over a Parquet lake, and dbt gives that SQL actual schema tests (`not_null`, `unique`) instead of trusting it silently. DuckDB reads the bronze files directly and writes into Postgres through its own `postgres` extension, no second JVM job required.
 - **Two-tier data quality** — Spark's in-stream checks (schema, ranges, cross-field consistency) are fast but only see one record at a time. Great Expectations re-checks the newest bronze partition with business-rule checks (valid categories, date ordering, freshness) as a second, independent gate. The gold marts, by contrast, rebuild from the full bronze history every run.
 - **A speed layer *and* a batch layer**, instead of one streaming-only pipeline — the speed layer optimizes for freshness (seconds-old numbers), the batch layer for richer aggregates that don't need to be real-time.
-- **A real stream-stream join for fulfillment time**, not a column subtraction — `order_shipped` is a genuinely separate event on its own topic, arriving some real seconds after the matching `order_placed`, and Spark correlates the two on the placed event's own `event_id` (not `order_id`, which repeats every replay cycle under `LOOP=true` and would let the join match records from different cycles). The dataset's static `order_date`/`ship_date` columns never factor into it.
-- **Prometheus + Grafana** for the operational side of things — throughput, topic offsets, and consumer lag are all genuinely observable this way. The lag part needed a small workaround: Structured Streaming's Kafka source never joins a real consumer group, so there was nothing for `kafka-exporter` to report against. Rather than set `kafka.group.id` directly on the production stream (Spark's own docs call that risky for a running pipeline), a separate additive service just republishes the offset Spark's own checkpoint already recorded as a consumer-group commit, purely for monitoring.
+- **A stream-stream join for fulfillment time**, not a column subtraction — `order_shipped` is a separate event on its own topic, arriving a few seconds after the matching `order_placed`, and Spark correlates the two on the placed event's `event_id` (not `order_id`, which repeats every replay cycle under `LOOP=true` and would let the join match records from different cycles). The dataset's static `order_date`/`ship_date` columns never factor into it.
+- **Prometheus + Grafana** for the operational side of things — throughput, topic offsets, and consumer lag are all observable this way. The lag part needed a small workaround: Structured Streaming's Kafka source never joins a real consumer group, so there was nothing for `kafka-exporter` to report against. Rather than set `kafka.group.id` directly on the production stream (Spark's own docs call that risky for a running pipeline), a separate service just republishes the offset Spark's own checkpoint already recorded as a consumer-group commit, purely for monitoring.
 - **BigQuery as a second sink for the marts** — the same lake-then-warehouse pattern a lot of real analytics stacks use, and a reason to touch Airflow's Google provider operators instead of hand-rolling API calls.
 - **Docker Compose** for the whole stack — one command to bring everything up or down.
 
@@ -91,7 +91,7 @@ Visit `http://localhost:8501` to watch order metrics update in real time.
 
 1. Producer replays a dataset as Avro-encoded events into a 3-broker Kafka cluster at a configurable rate, deliberately corrupting ~2% of records across 5 distinct failure modes to exercise the quality checks downstream.
 2. Schema Registry rejects structurally invalid records (missing/wrong-typed fields) at serialize time; Spark separately catches the corruption Avro can't — negative values, absurd magnitudes, cross-field inconsistencies, bad date ordering — and routes it to a dead-letter topic tagged with the specific reason.
-3. A separate `order_shipped` event arrives on its own topic some real seconds after each order; Spark's stream-stream join computes actual fulfillment time from the two real timestamps.
+3. A separate `order_shipped` event arrives on its own topic a few seconds after each order; Spark's stream-stream join computes fulfillment time from the two timestamps.
 4. 1-minute windowed aggregations by region and sales channel, written to Postgres.
 5. Hourly Great Expectations validation before rebuilding the gold marts with dbt.
 6. dbt-based analytics: fulfillment time, profit margins, regional sales, top items, channel performance — 5 models, 19 schema tests.
@@ -124,7 +124,7 @@ Visit `http://localhost:8501` to watch order metrics update in real time.
    ```
 4. `make up`, then `make produce` in another terminal, then `make demo` in a third.
 
-Cloud pieces (BigQuery export, hosted dashboard) are optional and need your own GCP/Neon/Streamlit accounts — see [CHANGELOG.md](CHANGELOG.md) items 5 and 6 for exact setup steps if you want those running too. Everything else works fully offline.
+Cloud pieces (BigQuery export, hosted dashboard) are optional and need your own GCP/Neon/Streamlit accounts — see [docs/gcp-setup.md](docs/gcp-setup.md) and [docs/hosting-setup.md](docs/hosting-setup.md) for exact setup steps if you want those running too. Everything else works fully offline.
 
 ### Verify it's working
 
@@ -186,10 +186,10 @@ Measured directly against this repo, not estimated:
 - **~4,500-5,000 events/sec** sustained from a single producer process against local Kafka, uncapped rate.
 - **15 unit tests** in ~1.5s, **2 integration/chaos tests** (restart-recovery + idempotence) in under 6 minutes total, all currently green.
 - **5 dbt models, 19 schema tests**, rebuilding 5 gold marts from full bronze history every run.
-- **5 corruption variants**, each landing in the dead-letter topic under its own distinct, correctly-attributed reason — verified by consuming the DLQ directly and tallying reasons against what the producer actually sent, not just trusting the code.
+- **5 corruption variants**, each landing in the dead-letter topic tagged with its own reason — confirmed by consuming the DLQ directly and tallying reasons against what the producer actually sent.
 - CI green on every push, consistently finishing in under 35 seconds.
-- **3-broker Kafka cluster survives a real broker kill** — produced through a live `kafka-3` outage with zero failed writes (min ISR 2 of 3), confirmed via `kafka-metadata-quorum.sh`, not just by reading the replication-factor config.
-- **Fulfillment time is a real measurement, not a placeholder**: a controlled test batch with a configured 8-12 second ship delay produced `fulfillment_seconds` values landing cleanly in `[8, 12]` in the actual gold mart — checked by querying `marts.fulfillment_time` directly, not just confirming the pipeline ran without errors.
+- **3-broker Kafka cluster survives a broker kill** — kept producing through a live `kafka-3` outage with zero failed writes (min ISR 2 of 3), confirmed via `kafka-metadata-quorum.sh`.
+- **Fulfillment time is a real measurement, not a placeholder**: a test batch with an 8-12 second ship delay produced `fulfillment_seconds` values landing cleanly in `[8, 12]` in the gold mart, checked by querying `marts.fulfillment_time` directly.
 
 ## Limitations
 
@@ -209,7 +209,3 @@ Measured directly against this repo, not estimated:
 - Multiple Kafka partitions for `orders`, to actually exercise partition-level parallelism instead of running everything through a single partition
 - A real `min.insync.replicas`-driven producer ack strategy (`acks=all`) to make the multi-broker fault tolerance airtight under concurrent writes, not just verified via a manual kill test
 - A dedicated Spark metrics sink so structured-streaming query metrics (batch latency, rows/sec) show up in Prometheus/Grafana directly, instead of only being visible via `/metrics/json/`
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for what's changed over time.

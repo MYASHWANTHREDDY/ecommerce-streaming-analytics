@@ -5,7 +5,7 @@ This DAG only reads the already-built marts.* tables in Postgres and lands them 
 BigQuery for downstream BI/interview-demo purposes -- it does not touch dbt or the
 Postgres tables themselves.
 
-Requires (all documented in README/CHANGELOG "GCP BigQuery export" setup steps):
+Requires (setup steps in docs/gcp-setup.md):
   - A Postgres Airflow connection registered as `postgres_default` (this repo sets it
     via the AIRFLOW_CONN_POSTGRES_DEFAULT env var in docker-compose.yml's
     x-airflow-common block, reusing the same postgres/pipeline/pipeline/analytics
@@ -16,12 +16,10 @@ Requires (all documented in README/CHANGELOG "GCP BigQuery export" setup steps):
     Airflow Connection needs to be created for GCP -- the env var is enough.
   - GCP_PROJECT_ID / GCP_GCS_BUCKET / GCP_BQ_DATASET env vars (see .env.example).
 
-NOT verified end-to-end in this sandbox: no GCP credentials or live Airflow instance
-were available here. What IS verified: DAG parses (ast.parse), the two operator
-classes/constructor signatures below were confirmed against the actual
-apache-airflow-providers-google==22.2.1 source (not assumed) -- see CHANGELOG.md
-item 5 status note for specifics, including the corrected operator name
-(PostgresToGCSOperator, not the plan's original "SQLToGCSOperator").
+Uses PostgresToGCSOperator, not SQLToGCSOperator -- the latter doesn't exist in
+apache-airflow-providers-google==22.2.1, only the Postgres-specific subclass does.
+See docs/gcp-setup.md for the type-inference bug this operator has on DATE columns
+and how the DAG's SQL works around it.
 """
 
 from __future__ import annotations

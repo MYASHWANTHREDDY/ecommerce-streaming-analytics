@@ -28,11 +28,10 @@ CORRUPT_PCT = float(os.environ.get("CORRUPT_PCT", "0.02"))
 DATA_FILE = os.environ.get("DATA_FILE", "data/sample_1k.csv")
 LOOP = os.environ.get("LOOP", "true").strip().lower() == "true"
 
-# The source dataset has no real shipping signal, so this simulates one: every
-# order_placed event gets a matching order_shipped event some real seconds later,
-# emitted as its own genuinely separate Kafka message rather than a field on the first
-# one. streaming/stream_orders.py joins the two streams on order_id to compute actual
-# fulfillment time from these two real timestamps -- see CHANGELOG.md for why.
+# The source dataset has no shipping signal, so this simulates one: every order_placed
+# event gets a matching order_shipped event a few seconds later, sent as its own Kafka
+# message rather than a field on the first one. streaming/stream_orders.py joins the two
+# streams on order_id to compute fulfillment time from the two timestamps.
 SHIP_DELAY_MIN_SECONDS = float(os.environ.get("SHIP_DELAY_MIN_SECONDS", "5"))
 SHIP_DELAY_MAX_SECONDS = float(os.environ.get("SHIP_DELAY_MAX_SECONDS", "30"))
 

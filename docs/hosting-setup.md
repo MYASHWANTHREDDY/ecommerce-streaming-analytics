@@ -6,8 +6,6 @@ is an explicitly-labeled **static snapshot**: a small cloud Postgres holds a per
 copy of `live_order_metrics` and the 5 gold marts, and Streamlit Community Cloud serves
 the same `dashboard/app.py` against that copy instead of localhost.
 
-Two one-time signups, done once, by you — an agent has no browser and can't click
-through either provider's UI.
 
 ## 1. Create a free cloud Postgres (Neon)
 

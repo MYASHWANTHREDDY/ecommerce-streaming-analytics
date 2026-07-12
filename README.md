@@ -204,8 +204,11 @@ Measured directly against this repo, not estimated:
 - Single-node Spark — demonstrates the Structured Streaming API correctly, not distributed scale.
 - The hosted dashboard's snapshot only updates when I manually run the sync script — there's no scheduled job for it, on purpose.
 
-## Ideas for later
+## Production Readiness Roadmap
 
-- Multiple Kafka partitions for `orders`, to actually exercise partition-level parallelism instead of running everything through a single partition
-- A real `min.insync.replicas`-driven producer ack strategy (`acks=all`) to make the multi-broker fault tolerance airtight under concurrent writes, not just verified via a manual kill test
+The current architecture covers the core streaming, batch, and quality layers end to end.
+Taking it further into production would mean:
+
+- Multiple Kafka partitions for `orders`, to exercise partition-level parallelism instead of running everything through a single partition
+- A producer `acks=all` strategy, explicitly configured and tested under concurrent load rather than relying on the client default and a single-producer kill test
 - A dedicated Spark metrics sink so structured-streaming query metrics (batch latency, rows/sec) show up in Prometheus/Grafana directly, instead of only being visible via `/metrics/json/`

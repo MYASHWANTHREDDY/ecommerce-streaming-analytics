@@ -212,3 +212,7 @@ Taking it further into production would mean:
 - Multiple Kafka partitions for `orders`, to exercise partition-level parallelism instead of running everything through a single partition
 - A producer `acks=all` strategy, explicitly configured and tested under concurrent load rather than relying on the client default and a single-producer kill test
 - A dedicated Spark metrics sink so structured-streaming query metrics (batch latency, rows/sec) show up in Prometheus/Grafana directly, instead of only being visible via `/metrics/json/`
+
+## License
+
+[MIT](LICENSE)
